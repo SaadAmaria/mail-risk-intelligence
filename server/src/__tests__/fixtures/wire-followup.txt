@@ -1,0 +1,13 @@
+From: Priya Nair <priya.nair@northwind-logistics.example>
+To: AP Team <ap@arcline.com>
+Cc: Tom Becker <tom.becker@arcline.com>
+Date: Tue, 09 Jun 2026 14:22:05 +0000
+Subject: Re: PO 7781 - delivery confirmation
+
+Hi team,
+
+Confirming delivery of PO 7781 on 8 June. Please release the remaining
+$6,250.00 per the agreed terms (net 30).
+
+Thanks,
+Priya

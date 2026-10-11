@@ -194,9 +194,265 @@ analysis), Round 2 (cross-review), Round 3 (four mandatory corrections → Freez
 - **Proposed by:** independent reviewer (findings); implemented by Claude.
   **Status:** authorized by the candidate.
 
+## Phase 1 records (storage and ingestion)
+
+All Phase 1 records are **contemporaneous** (written 2026-10-11 while implementing) and
+their status is **implemented within the authorized Phase 1 scope; awaiting independent
+review** unless stated otherwise.
+
+Each record that was revised after review separates five kinds of statement, so that
+original choices are not rewritten into hindsight:
+
+- **Original** — what was decided and implemented in the first Phase 1 pass (unchanged text
+  above the corrective block).
+- **Review finding** — what the independent reviewer raised.
+- **Reproduced defect** — behaviour I observed by running the code, not just argued.
+- **Human-approved correction** — the change the candidate authorized.
+- **Verification (executed)** — tests/commands actually run after the correction.
+
+Test counts: the first Phase 1 pass ended at 80 tests in 6 files (all passing at that time).
+After the corrective round the suite is 138 tests in 8 files, all passing (see PROCESS.md).
+Alternatives marked "considered" were considered conceptually in the planning rounds or the
+review; **none was benchmarked or trialled** unless a record says so explicitly.
+
+## D14. Ingestion as four stages around one normalized contract
+
+- **Context:** seed JSON, pasted text, TXT, EML, and PDF must flow through one pipeline and
+  yield the same structure; failures must be explicit.
+- **Selected:** parse (source-specific) → validate (structure) → normalize (shared zod
+  `NormalizedEmail`) → persist. Missing headers are `null`/`[]` plus a `missing_headers`
+  list; nothing is invented. Text with a header block goes through the same MIME parser as
+  EML; header-less text keeps all headers missing.
+- **Alternatives considered:** the candidate's brief asked for explicit missing values
+  rather than invented ones. **(retrospective)** sentinel strings such as "(unknown
+  sender)"; one monolithic ingest function per source.
+- **Trade-offs:** an explicit contract costs a shared schema and a mapping layer; consumers
+  must handle `null`.
+- **Known limitations:** pasted text needs a blank line after the header block to be
+  recognized (strict), so a block without one is treated as body.
+- **Verification:** `ingest-text`, `ingest-eml`, `ingest-pdf` tests; every source asserts the
+  normalized shape, including header-less and partial-header input.
+
+**Corrective round (2026-10-11):**
+- **Review finding (F3):** the "nothing is invented" principle was not honored for dates, and
+  lenient PDF header recovery could consume body lines.
+- **Reproduced defects:** `Date: June 5` became `2001-06-04T21:00:00Z` (invented year, shifted
+  by the machine timezone); a PDF body line `Re: …` after the headers disappeared from
+  `body`.
+- **Human-approved correction:** uncertain sender, recipient, date and subject stay missing:
+  see D20 for the date gate and the header whitelist. Address warnings now show the raw
+  value (the old message printed an empty string). EML/paste behaviour otherwise unchanged.
+- **Verification (executed):** 12 negative-date cases, 9 accepted-date cases, a four-timezone
+  determinism test, and PDF header-absorption/memo/prose regressions all pass; existing EML
+  tests pass unchanged.
+
+## D15. EML/MIME parsing with `postal-mime` (not `mailparser`)
+
+- **Context:** parse EML safely, with bounded work and no filesystem or network access.
+- **Selected:** `postal-mime` 4.0.5, with caps on nesting depth, header bytes, and part count,
+  and embedded `message/rfc822` parts kept as attachments rather than parsed inline.
+- **Alternatives considered:** `mailparser` was named as a candidate in the Round 2 plan.
+  Not benchmarked or trialled side by side.
+- **Why this one here:** it declares no runtime dependencies (checked in its package.json)
+  and exposes parser limits as options. This is a judgment about fit, not a measured
+  comparison; `mailparser` is the more widely used library and I did not test it.
+- **Trade-offs:** smaller ecosystem; behaviours observed only through the test corpus.
+- **Verification:** 9 EML tests (QP + encoded words, HTML fallback, PDF/text/unsupported
+  attachments, limits, embedded message, malformed). **Not verified:** a large corpus of
+  real-world EML files.
+
+## D16. PDF text extraction with `unpdf` (pdf.js build)
+
+- **Context:** text-layer PDF is mandatory; scanned PDF must report OCR unsupported; corrupt
+  PDF must be distinguishable.
+- **Selected:** `unpdf` 1.8.1. Signature check, then page-by-page extraction bounded by page
+  count, character count, and a wall-clock budget. Statuses: `ok`, `ocr_unsupported`
+  (valid, no text), `invalid_pdf` (bad signature, corrupt, or password-protected), `timeout`.
+- **Alternatives considered:** `pdf-parse` and direct `pdfjs-dist` were named in earlier
+  notes. Not trialled; a remembered quirk of `pdf-parse` was never verified here.
+- **Trade-offs/limitations:** parsing is in-process, so the timeout bounds async stalls but
+  cannot interrupt a synchronous CPU-bound loop inside the parser; no OCR; text order and
+  line breaks depend on the producing tool.
+- **Verification:** extraction, ocr_unsupported vs invalid_pdf, page cap, and signature tests.
+  **Important limitation:** test PDFs are generated by a small builder (Helvetica text,
+  single font), not produced by real-world PDF tools or containing real scans.
+
+**Corrective round (2026-10-11):**
+- **Review finding (F5):** the password-protected and timeout mappings existed in code but
+  had no test, so they were unverified.
+- **Human-approved correction:** add tests for those mappings.
+- **Verification (executed) and its limit:** `pdf-errors.test.ts` (6 tests) replaces the
+  pdf.js entry point with a mock, so it verifies **our** status/code mapping
+  (`PasswordException` → `invalid_pdf`; a never-settling parse → `timeout` /
+  `pdf_timeout` / attachment `failed`). It does **not** show that a genuinely encrypted PDF
+  or a genuinely stalled parse behaves that way in pdf.js.
+
+## D17. Repository abstraction: SQLite + in-memory, synchronous
+
+- **Context:** persistence with clean boundaries; repeatable init; safe close; test double.
+- **Selected:** `EmailRepository` interface; `SqliteRepository` (better-sqlite3, parameterized
+  SQL, WAL for files, `user_version` migration guard, handle closed if init fails) and a
+  Map-backed `MemoryRepository`, both run through one shared contract test suite. Address
+  lists are JSON columns; `analyses`, `entities`, `entity_mentions`, `relationships` tables
+  exist as foundations but have no repository methods yet.
+- **Alternatives considered:** JSON file store and `sql.js` (Rounds 1–2). **(retrospective)**
+  an async interface; an ORM.
+- **Trade-offs:** sync API is simplest with better-sqlite3 but would change if a networked
+  DB were substituted; JSON columns are not queryable by address; the unused tables are
+  unexercised beyond existence and cascade.
+- **Verification:** contract suite on all three backends, persistence across reopen,
+  repeated init, newer-schema refusal, cascade delete, hostile-string insertion.
+  `better-sqlite3` 13.0.3 loaded and passed on Node 24.11.1/Windows (closes the D2 install
+  risk **for this machine only**).
+
+## D18. Idempotent seeding and duplicate handling
+
+- **Selected:** seed ids are preserved as primary keys; an existing id or an identical
+  content hash is skipped (`id_exists` / `duplicate_content`). The content hash covers
+  from/to/cc/date/subject/trimmed body/attachment names and text. Seeding runs at server
+  start. Invalid seed records are reported without aborting the rest; chronology comes from
+  dates, not array order.
+- **Alternatives considered:** the brief's "restart must not duplicate" requirement fixed
+  idempotency. **(retrospective)** dedupe by `Message-ID`; a separate `npm run seed` command.
+- **Limitations:** whitespace/quoting variants of a message are **not** deduplicated; a
+  pasted message identical to a not-yet-seeded seed record would claim the content and the
+  seed id would be reported as `duplicate_content`.
+- **Verification:** seed tests (10 emails, idempotent, restart persistence, verbatim fields,
+  chronology, error isolation); manual double boot: 10 created, then 10 existing, 10 rows.
+
+**Corrective round (2026-10-11):**
+- **Review finding (F1):** content ingested before seeding could prevent a seed message from
+  receiving its original id; I should also not have described the collision as reported as
+  `duplicate_content` (see below).
+- **Reproduced defect:** pasting content identical to E001 and then seeding left E001
+  absent. The seed report said `created 9, existing 1, errors []`, because the loader counted
+  both `id_exists` and `duplicate_content` as "existing". The same happened for an EML copy.
+  The original wording in the "Limitations" bullet above was inaccurate: the collision was
+  **not** reported as an error.
+- **Human-approved correction (no schema change):**
+  - Seed messages hash with a scope key derived from their own id
+    (`computeContentHash`), so user content can never occupy a seed identity. Non-seed hashes
+    are unchanged; an existing database with unscoped seed hashes still reseeds as
+    `id_exists`.
+  - Only `id_exists` counts as "existing". Any other non-created result for a seed record is
+    an error, and startup verifies that every seed id is actually stored (D21).
+  - Duplicate record ids inside a seed file are reported instead of being skipped.
+- **Accepted trade-off:** a user pasting a verbatim copy of a seed email *after* seeding now
+  creates a separate record (it is no longer deduplicated against the seed message).
+  Repeated pastes of that copy are still deduplicated among themselves. Restoring
+  dedupe-against-seed would need an additional column and migration, which was not approved.
+- **Alternative considered, not implemented:** re-keying an existing pasted row to the seed
+  id (destructive and loses provenance).
+- **Verification (executed):** paste-before-seed and EML-before-seed keep E001–E010
+  (11 rows when the copy exists); idempotent re-seed; legacy-hash row; collision reported as
+  error; duplicate-id file; documented post-seed paste behaviour.
+
+## D19. Upload safety policy
+
+- **Selected:** extension allow-list (`.txt`, `.eml`, `.pdf`) plus Content-Type consistency;
+  5 MB file / 1 MB paste / 200k stored characters / 10 attachments / 5 MB per attachment /
+  30 PDF pages; NUL-byte binary sniff; `%PDF-` signature; embedded content never fetched or
+  rendered; filenames reduced to display names. An attachment that cannot be read is stored
+  with an explicit status and message (`unsupported_type`, `too_large`, `skipped_limit`,
+  `invalid_pdf`, `ocr_unsupported`, `failed`); the message itself is still ingested.
+- **Alternatives considered:** **(retrospective)** reject the whole EML if any attachment
+  fails (loses the message and its evidence); trust the declared Content-Type alone.
+- **Limitations:** the numeric limits are judgment values, not measured; no virus/malware
+  scanning; no sandboxing of the PDF parser.
+- **Verification:** `upload-safety` and attachment tests.
+
+**Corrective round (2026-10-11):**
+- **Review finding (F5):** the original record claimed the tests covered "the exact size
+  boundary". That was **overstated**: the boundary test used a 52-byte file and a 65-byte
+  file against a 64-byte limit, so it never tested a file of exactly the limit.
+- **Human-approved correction:** the claim is corrected here; the test now uses a file of
+  exactly 64 bytes (accepted) and 65 bytes (rejected). The same inclusive boundary is tested
+  for attachments (16 vs 17 bytes). Added: an undecodable text attachment is recorded as
+  `failed` and kept; a fetch spy asserts that HTML with remote links/images triggers no
+  `fetch` call (previously asserted only by the output text).
+- **Remaining limitation:** the fetch spy covers `globalThis.fetch` only; it does not prove
+  the absence of other network paths such as `node:http`, though the code uses none.
+
+## D20. Date normalization, lenient header recovery for PDFs
+
+- **Selected:** dates normalize to UTC ISO-8601 at second resolution so string order is
+  chronological; unparseable dates become `null` with a warning. For PDF-sourced text only,
+  the header block ends at the first non-header line, because pdf.js drops blank lines.
+- **Found by test:** my first PDF test assumed a blank line would survive extraction; it did
+  not (see PROCESS.md), so strict detection correctly refused to guess. The lenient rule is
+  a correction to that false assumption.
+- **Alternatives:** **(retrospective)** keep raw date strings and add an epoch column;
+  apply lenient splitting to pasted text as well (rejected: increases false header detection
+  in prose).
+- **Limitations:** original UTC offset is only retained in `raw_source`; a PDF body line that
+  resembles a header or starts with whitespace right after the header block can be
+  misclassified.
+- **Verification:** header/body split tests (strict vs lenient), PDF header test.
+
+**Corrective round (2026-10-11):**
+- **Review finding (F3):** the original rule accepted whatever `Date.parse` accepted, and
+  lenient mode treated any `Word:` line after the headers as a header.
+- **Reproduced defects (observed by running the code):**
+  1. `Date: June 5` → `2001-06-04T21:00:00Z`; `06/07/2026` read as 7 June;
+     `2026-06-01 12:00` and `2026-06-01T12:00:00` taken as the machine's local time, giving
+     different instants under `TZ=America/Los_Angeles` (so output also depended on the machine).
+  2. PDF lines `From`, `Subject`, `Re: your payment is overdue`, `Please pay today.` produced
+     a body containing only `Please pay today.`.
+  3. A related fix: the MIME parser's own pre-coerced `date` was used, so the raw header
+     value is now read instead.
+- **Human-approved correction:**
+  - **Dates:** accept only RFC 5322 date-times with an explicit zone (numeric offset, `GMT`/
+    `UT`/`UTC`/`Z`, or the US named zones) and ISO 8601 date-times with `Z` or a numeric
+    offset. Parsing is done from the matched components, not `Date.parse`, so it is identical
+    in every timezone and rejects calendar rollover (31 Feb) and 2-digit years. Anything else
+    → `null` plus a warning. Date-only values are rejected.
+  - **Lenient PDF headers:** the block continues only for recognized header names
+    (`from, to, cc, bcc, subject, date, sent, reply-to, sender, message-id, in-reply-to,
+    references, return-path`); any other `Word:` line ends the block and stays in the body.
+    Folded continuation lines are not honored in lenient mode.
+- **Alternatives considered (not benchmarked):** keep `Date.parse` and add warnings;
+  default missing years/zones (rejected: that is exactly the invention being prevented).
+- **Limitations:** a genuinely wrapped long subject in a PDF is truncated at the wrap (the
+  rest lands in the body); a date with an unusual but valid zone abbreviation is rejected;
+  weekday names are not cross-checked against the date.
+- **Verification (executed):** negative and positive date tables, timezone determinism over
+  `UTC`, `America/Los_Angeles`, `Asia/Kolkata`, `Pacific/Auckland`; PDF absorption regressions
+  (`Re:`, `Note:`, `Regards:`, `Attachments:`, indented line), memo and prose cases.
+
+## D21. Strict startup policy for mandatory seed data
+
+- **Context:** the seed mailbox is a mandatory deliverable. The first pass kept the server
+  healthy when seeding failed, which the reviewer rejected.
+- **Review finding (F2):** a reviewer must never see a healthy demo whose seed data silently
+  failed.
+- **Reproduced defects:** with a missing file, malformed JSON, wrong shape, a UTF-8 BOM, or
+  invalid records, the server stayed up with `/api/health` → 200 and a console line only;
+  invalid records produced `Required; Required; …` with no field names; a database failure
+  printed a raw stack trace.
+- **Human-approved policy (strict fail-fast):** exit non-zero with a clear message when the
+  database cannot be opened/initialized, the seed file is missing/unreadable/malformed/the
+  wrong shape/empty, any record is invalid or duplicated, any record fails to insert, or any
+  seed id is absent after seeding (checked directly, not from counters). The whole file is
+  validated before any write, so a bad file never leaves a half-seeded database. Messages
+  carry paths, ids and field paths only (no bodies, no credentials) and no stack traces. A
+  UTF-8 BOM is tolerated. Per-message normalization warnings (e.g. an ignored date) stay
+  non-fatal and are stored with the email. The health contract is unchanged.
+- **Alternative considered, not implemented:** a degraded mode that starts and reports
+  `seed` status in `/api/health` (needs a shared API contract change that was not approved).
+- **Trade-offs:** a single bad record in a user-edited seed file prevents startup; the
+  operator must fix the file. `SEED_PATH` pointing at another file is held to the same rule.
+- **Verification (executed):** 13 unit tests in `startup.test.ts`, plus real-process checks
+  for seven failure modes (all exit code 1, no stack trace, no body leaked, server not
+  reachable) and a valid start/restart (10 created, then 10 present; ids E001–E010;
+  4 attachments preserved).
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a
 root-level `.env`, plain CSS variables file as the styling start. These were picked by
 Claude as known-compatible versions/defaults; newer majors were **not** compared or tested.
 Status: part of the approved Phase 0 scaffold, low-risk and reversible.
+
+Phase 1 additions of the same kind: `vitest` as the test runner. The three `.gitkeep` files
+in directories that became populated were removed in the corrective round (review finding
+F4, human-approved); `.gitkeep` files in still-empty directories remain.

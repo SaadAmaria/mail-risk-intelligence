@@ -146,6 +146,141 @@ technical reviewer, whose findings the candidate relayed.
 - **Time:** not measured.
 - **Next:** wait for explicit authorization to commit/push and for Phase 1.
 
+## 2026-10-11 — Phase 0 commit pushed (documentation note)
+
+- **Fact:** the Phase 0 scaffold, governance documents, and the F1/F3/F4 corrections were
+  committed as `9631fa60f5bd89a704f077c0e06c42f24c4ce18e` and pushed to `origin/main` of the
+  private repository. Local `HEAD`, `origin/main`, and `git ls-remote` matched afterwards
+  and the working tree was clean.
+- **Why recorded here:** that operation was authorized only for the commit and push, not for
+  editing documentation, so this entry was added in Phase 1.
+
+## 2026-10-11 — Phase 1: storage and ingestion
+
+- **Prompt (summary):** implement Phase 1 only: SQLite persistence behind a repository,
+  idempotent seeding of all 10 emails, a normalized ingestion pipeline for seed/paste/TXT/EML/
+  text-PDF/PDF-in-EML, upload safety, deterministic tests; no agents, risk engine, graph,
+  commit, or push.
+- **Dependencies added (server):** `better-sqlite3`, `postal-mime`, `unpdf`; dev:
+  `vitest`, `@types/better-sqlite3`. Installed without error; `better-sqlite3` loaded on
+  Node 24.11.1 (SQLite 3.53.4).
+- **Implemented:** shared `NormalizedEmail` contract; `server/src/ingestion/*` (limits,
+  errors, text/HTML helpers, PDF extraction, MIME/text/seed parsers, validation,
+  attachment and email normalization, ingest entry points, seed loader);
+  `server/src/storage/*` (interface, SQLite and in-memory implementations, schema);
+  server boot now opens the database and seeds it, closing it on SIGINT/SIGTERM. No HTTP
+  endpoints were added (API is Phase 4).
+- **Failures and corrections:**
+  1. Typecheck failed on two pdf.js typing mismatches (`isEvalSupported` is not an option of
+     the bundled version; `PDFDocumentProxy` has no `destroy`, the loading task does).
+     Removed the option and used `doc.loadingTask.destroy()`.
+  2. First test run: 76 of 79 passed, 3 failed.
+     - *Real bug:* `SqliteRepository` leaked its database handle when the schema check threw,
+       which locked the temp file on Windows. Fixed by closing the handle on init failure.
+     - *Wrong test assumption → real behaviour gap:* I expected the PDF header block to be
+       found, but pdf.js drops empty text runs, so the blank line separating headers from
+       body vanished and the (correctly strict) splitter refused to guess. Confirmed by
+       dumping the extracted text. Added a lenient mode used only for PDF-sourced text.
+     - *Minor:* MIME-parsed bodies carried a trailing newline from the parser; trimmed.
+  3. A debug test file was created temporarily to inspect the PDF text and removed
+     afterwards; one console-based attempt printed nothing, so the dump was written to a
+     file instead.
+- **Executed validation (final state):**
+  - `npm test`: 6 files, 80 tests, all passed (run from the repo root).
+  - `npm run typecheck`: exit 0 in all workspaces.
+  - `npm run build`: exit 0.
+  - Real server boot twice against the default database path: first boot `10 created`,
+    second `10 already present`; database held 10 emails and 4 attachment rows; chronological
+    order started with E009; ports freed afterwards.
+  - Phase 0 default-port smoke re-run: direct and proxied `/api/health` identical, API bound
+    to `127.0.0.1`, LAN address unreachable.
+  - Generated `server/data/` and temp test directories were removed afterwards.
+- **Not executed / limitations:** no real-world PDFs or EMLs beyond generated fixtures and
+  three small hand-written files; Node < 24 untested; no load or fuzz testing; the PDF
+  parser runs in-process (timeout cannot preempt a synchronous parser loop).
+- **Time:** not measured.
+- **Next:** wait for independent review; no commit or push performed.
+
+## 2026-10-11 — Phase 1 targeted review and corrective implementation
+
+**Independent review findings (raised by the reviewer, investigated by Claude without
+modifying files):**
+- F1 seed identity / deduplication; F2 seed initialization failure; F3 PDF header inference;
+  F4 repository hygiene; F5 test evidence.
+
+**Defects reproduced by running the code (not just argued):**
+1. *F1:* pasting content identical to E001 and then seeding left E001 missing; the seed
+   report said `created 9, existing 1, errors []` (the loader counted `duplicate_content`
+   as "existing"). Same via EML. My earlier D18 note that this case was "reported as
+   `duplicate_content`" was wrong.
+2. *F2:* missing file, malformed JSON, wrong shape, a UTF-8 BOM and invalid records all left
+   the server running with `/api/health` 200 and 0–2 emails; field errors read
+   `Required; Required; …`; DB failures printed raw stacks. (A first scenario run was
+   confounded: PowerShell wrote my scratch JSON with a BOM, so cases B–D initially all
+   failed with "not valid JSON". That exposed the BOM defect and I re-ran those cases with
+   BOM-free files.)
+3. *F3:* `Date: June 5` → `2001-06-04T21:00:00Z`; `06/07/2026` → 7 June; zone-less
+   datetimes used the machine's timezone (different instants under another `TZ`); a PDF
+   `Re: …` line after headers was dropped from the body.
+4. *F5:* my D19 claim of testing "the exact size boundary" was overstated (the test used 52
+   and 65 bytes against a 64-byte limit).
+
+**Human-approved corrections (candidate's explicit decisions):** seed-scoped hashing with no
+schema change and a documented dedupe trade-off; strict fail-fast startup with BOM
+tolerance, field-path messages and sanitized DB errors, health contract unchanged;
+never-invent dates and a recognized-header whitelist for lenient PDF parsing; remove only the
+three obsolete `.gitkeep` files; exact boundary and reopen tests prioritized, other tests
+only if justified.
+
+**Implemented (Claude):**
+- `normalize.ts`: hand-written date gate (RFC 5322 with explicit zone, ISO 8601 with
+  `Z`/offset; no `Date.parse`; rollover and 2-digit years rejected); seed-scoped
+  `computeContentHash`; warning text shows the raw value.
+- `parseMime.ts`: read the raw `Date` header instead of the parser's coerced value.
+- `parseText.ts`: lenient mode accepts only recognized header names; continuation lines are
+  not honored in lenient mode.
+- `seed.ts`: `loadSeedFile` (typed `SeedFileError`, BOM-tolerant, field-path messages,
+  duplicate-id detection), `seedRecords`, `seedFromFile`; only `id_exists` counts as existing.
+- New `startup.ts` (`initialize`, `StartupError`): validate whole file before writing,
+  verify every id is stored, close the DB on failure. `index.ts` exits 1 with a short
+  message on any `StartupError`.
+- Removed `server/src/{ingestion,storage,__tests__/fixtures}/.gitkeep` (deleted on disk;
+  not staged).
+- Tests added/changed: date tables and timezone determinism, PDF header regressions, seed
+  identity regressions, `startup.test.ts` (13), reopen assertions for attachments/raw
+  source/provenance, exact size boundaries, binary attachment → `failed`, fetch spy, and
+  `pdf-errors.test.ts` (6, pdf.js mocked).
+- Decision records D14, D16, D18, D19, D20 updated with separate original / review /
+  reproduced / approved / verified blocks; D21 (startup policy) added.
+
+**Failures during this round:**
+- Two existing tests failed after the date change because they matched the old warning
+  wording; expectations were updated (intended behaviour change).
+- One typing error in the new startup test (indexing an optional record) was fixed.
+- My first scratch script for the experiments failed (CommonJS top-level await, then a
+  Windows path needing a `file://` URL); fixed in the scratch script only.
+
+**Executed validation (final state):**
+- `npm test`: 8 files, **138 tests, 138 passed** (upload-safety 16, ingest-text 38,
+  storage 25, ingest-eml 9, ingest-pdf 16, seed 15, pdf-errors 6, startup 13).
+- `npm run typecheck`: exit 0 (shared, server, web). `npm run build`: exit 0.
+- Real process, valid seeds: first start `10 created`, restart `0 created, 10 already
+  present`; database held ids E001–E010 and 4 attachments (E003, E004, E007, E009) with text.
+- Real process, seven failure modes (missing file, malformed JSON, wrong shape, empty file,
+  partially invalid records, DB parent is a file, garbage DB file): each exited with code 1,
+  printed a clear message, showed no stack trace, did not leak the body marker planted in
+  the invalid record, and left no listening server.
+- Phase 0 smoke: direct and proxied `/api/health` identical, API on `127.0.0.1`, LAN address
+  unreachable.
+- Originals unchanged; `HEAD` still equals `origin/main` (`9631fa6`); generated `server/data`
+  and temp directories removed.
+
+**Not verified / limitations:** genuine encrypted or stalled PDFs (only our mapping is tested
+via a mock); real-world PDFs/EMLs beyond generated fixtures; Node < 24; wrapped PDF subjects
+are truncated at the wrap; `fetch` spy does not cover other network APIs.
+
+**Time:** not measured. **Next:** await independent review; no commit or push performed.
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->
