@@ -1270,6 +1270,114 @@ action, D40); (c) UTC date display; (d) every poll refetches the list and a 500-
   inbox were not reliable; the defect existed in the committed Phase 5 (commit 0988ea4).
 - **Verification (executed):** container probe empty at 1440/1280/768/375; screenshots reviewed.
 
+## Phase 6 records (recorded AI analysis and replay)
+
+All Phase 6 records are **contemporaneous** (2026-10-11). Status: **implemented within the
+authorized scope; awaiting independent review**. Provenance of evidence: tests use scripted fake
+providers; the smoke used a synthetic email; **no real provider response was recorded**.
+
+**Needs your decision / flagged:** (a) the additive `replay` object in
+`shared/src/api.ts` (authorized as "small additive health field"); (b) `LlmErrorKind` gained
+`not_recorded` (internal, surfaces as a string in the run log); (c) a recording never replaces a
+finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
+
+## D59. Replay at the `LlmClient` boundary (approved architecture)
+
+- **Selected:** `RecordedLlmClient` returns stored raw completions for requests whose
+  nonce-normalized hash matches. Agent A/B validation, grounding, orchestration invariants,
+  aggregation, cross-email and entity logic are untouched and run on replayed text exactly as on
+  live text.
+- **Alternatives:** inserting assessments directly (rejected: a trusted shortcut around
+  validation); a pre-analyzed seed database (rejected: opaque, bypasses the pipeline, stales
+  silently); a separate result store keyed by email (rejected: same shortcut in a new place).
+- **Trade-offs:** fixtures break whenever a prompt or parsing change alters a request; an
+  intentional strictness.
+- **Verification (executed):** parity test (live vs replay produce equal extraction and
+  assessment), invalid-quote test (a consistently sealed fixture with an ungrounded quote ends
+  `partial`/no assessment), deterministic triple replay, repair-call replay and its missing-call
+  degradation.
+- **Approval:** architecture approved by the reviewer before implementation.
+
+## D60. Fixture format, matching and integrity
+
+- **Selected:** one JSON per seed email plus `index.json`. Stored: email id and content hash,
+  prompt/schema versions, ordered calls (stage, normalized request hash, raw content, finish
+  reason, response model, usage, latency), capture metadata (time, tool, provider host, requested
+  model, attempt / attempts made) and the capture run's status and result digest. Not stored: keys,
+  headers, prompt text, environment, local paths. The request hash replaces the random
+  `DATA_<16 hex>` delimiter nonce with a constant, so it is reproducible, and it covers the whole
+  prompt, so a response cannot serve another message or a changed prompt.
+- **Limits:** `integrity` is a SHA-256 over the canonical body: it catches corruption and casual
+  edits, not a deliberate regeneration. No claim of provider authorship is made.
+- **Alternatives:** keying by email id only (rejected: serves stale answers); signing (out of
+  scope, needs key management).
+- **Verification (executed):** loader tests for missing dir, missing manifest, corrupted JSON,
+  edit without re-sealing, unsupported version, changed prompt, changed schema, stale content hash,
+  absent message, path traversal in the manifest and an unlisted file.
+
+## D61. Recorder: operator-controlled, isolated, self-verifying, never run live here
+
+- **Selected:** dry run by default (prints ids, count, size, destination host, model, output
+  dir); transmission needs `--send` AND `--authorize-seed-transmission=<N>` equal to the listed
+  count AND a valid LLM configuration; seed ids only; an isolated in-memory database; a recording
+  wrapper over the real client; each capture is replayed into a second isolated database and must
+  reproduce the same persisted result before it is written; a secret/path scan (including the
+  configured key value) blocks publication; failed and partial outcomes are kept as they are;
+  provider failures with no completion are reported, not fabricated.
+- **Not done:** **the recorder was never executed with `--send`.** Only the dry run, the refusal
+  paths and fake-provider tests were executed.
+- **Trade-offs:** a run that ends degraded because the provider failed produces no fixture; an
+  operator who re-runs until a good result appears must pass `attempt` / `attemptsMade` (the CLI
+  records 1/1 today; documented limitation).
+
+## D62. Routing, provenance and non-mixing
+
+- **Selected:** live configuration always wins; otherwise compatible recordings enable replay;
+  otherwise rules-only. Replay needs an explicit request (the analysis action or `analyze:true`),
+  recovery stays explicit-only (D41), reads never replay (D40). `provenance` comes from the
+  client; a stored live extraction is resumed only by a live client; a recording never replaces a
+  finished live analysis; replay never feeds `ProviderStatusTracker`, so health cannot report
+  `reachable` because of a replay; `externalCallsMayStart` is true only for a live client.
+- **A message without a usable recording** (pasted, uploaded, stale or changed) ends
+  `degraded` with `error_kind: not_recorded`, never complete.
+
+## D63. Frontend provenance
+
+- **Selected:** chips "AI-assessed — Live", "AI-assessed — Recorded", "Automatic checks only",
+  "Not assessed"; status "Analyzed by AI — recorded"; a line that the result was replayed and no
+  email was sent; the action "Replay recorded analysis" with the notice "This uses a previously
+  recorded AI response. No email is sent to an AI provider."; no button at all for a message with
+  no recording; the health pill says recorded analyses are available and never "reachable".
+- **Verification (executed):** copy and component tests; real-browser smoke (see PROCESS.md).
+
+## D64. Recorder publication is incremental, explicit and atomic (corrects D61)
+
+- **Context:** review of the E004 preflight found that the recorder would have written a manifest
+  listing only the current run's fixtures and could write over an existing fixture file.
+- **Selected:** inspect the existing set first; keep valid entries; refuse a repeat unless named in
+  `overwrite` (before any provider call); stop on an unusable manifest or unusable existing entry;
+  write new files under non-colliding names; replace `index.json` last by one atomic rename;
+  remove superseded files only afterwards; keep the manifest sorted by id.
+- **Alternatives:** silent merge, automatic cleanup of unusable entries, per-run manifests (all
+  rejected, see PROCESS.md).
+- **Trade-offs:** an operator must resolve an unusable existing entry deliberately; a stale
+  recording therefore blocks adding others until it is overwritten or removed.
+- **Verification (executed):** 15 new tests including crash-before-publication and
+  failed-second-recording; mutation checks that reintroduce the defect fail the tests.
+- **Approval:** correction authorized by the reviewer; awaiting final review. D61's statement that
+  the output set is "written" is amended: it is merged and published atomically.
+
+## D65. Recording attempt provenance is tracked or refused, never manufactured
+
+- **Selected:** attempt 1 for an id with no recording in the directory; a repeat only with
+  `--overwrite <id>`, numbered from the previous recording's `attempts_made`; if that recording is
+  unreadable, an explicit `--attempt N` (>= 2) from the operator or a refusal. The latest
+  recording has `attempt === attempts_made`.
+- **Limitations:** history is only what the directory shows; there is no separate log, by design.
+  A hand-deleted recording is indistinguishable from a first one.
+- **Verification (executed):** tests for first attempt, repeats 2 and 3, undeclared and
+  too-low declared attempts, and the CLI guard.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

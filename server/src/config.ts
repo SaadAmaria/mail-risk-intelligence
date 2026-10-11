@@ -18,6 +18,8 @@ export const config = {
   seedPath:
     process.env.SEED_PATH?.trim() ||
     fileURLToPath(new URL("../../mock_mailbox_data.json", import.meta.url)),
+  // Recorded fixtures (used only when no live LLM is configured). Read-only.
+  replayDir: process.env.REPLAY_DIR?.trim() || fileURLToPath(new URL("../../fixtures/recorded", import.meta.url)),
   // Contains the API key: never log, serialize, or return this object. Use describeSettings()
   // or the health payload for anything user-visible.
   llm,

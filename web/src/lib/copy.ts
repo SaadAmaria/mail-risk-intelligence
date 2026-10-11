@@ -3,6 +3,8 @@ import type {
   HealthResponse,
   IndicatorCategory,
   ProcessingStatus,
+  Provenance,
+  ReplayStatus,
   RiskView,
 } from "@mri/shared";
 
@@ -42,8 +44,15 @@ export function basisLine(view: Pick<RiskView, "basis" | "ai_level" | "rules_lev
 }
 
 /** Short qualifier shown next to a level so a rules-only level is never mistaken for an AI one. */
-export function basisChip(basis: RiskView["basis"]): { text: string; kind: "ai" | "rules" | "none" } {
-  if (basis === "ai_and_rules") return { text: "AI-assessed", kind: "ai" };
+export function basisChip(
+  basis: RiskView["basis"],
+  provenance: Provenance | null = null,
+): { text: string; kind: "ai" | "rules" | "none" } {
+  if (basis === "ai_and_rules") {
+    // Where the answer came from is part of the label: a replay must never read as a live call.
+    const source = provenance === "recorded" ? " — Recorded" : provenance === "live" ? " — Live" : "";
+    return { text: `AI-assessed${source}`, kind: "ai" };
+  }
   if (basis === "rules_only") return { text: "Automatic checks only", kind: "rules" };
   return { text: "Not assessed", kind: "none" };
 }
@@ -56,14 +65,25 @@ export interface StatusCopy {
   step: number;
 }
 
-export function statusCopy(status: ProcessingStatus, aiConfigured: boolean): StatusCopy {
+export const RECORDED_NOTICE = "This uses a previously recorded AI response. No email is sent to an AI provider.";
+
+/** `recorded`: replay is available and this message has a usable recording. */
+export interface StatusContext {
+  mode?: "live" | "recorded" | "none";
+  provenance?: Provenance | null;
+}
+
+export function statusCopy(status: ProcessingStatus, aiConfigured: boolean, ctx: StatusContext = {}): StatusCopy {
   switch (status) {
     case "not_started":
       return {
         title: "Not analyzed yet",
-        detail: aiConfigured
-          ? "Nothing has been sent to the AI. Automatic checks are shown below. Choose Analyze to run the AI assessment."
-          : "AI is not configured, so analysis will run automatic checks only.",
+        detail:
+          ctx.mode === "recorded"
+            ? "Automatic checks are shown below. Choose Replay to show the recorded AI analysis."
+            : aiConfigured
+              ? "Nothing has been sent to the AI. Automatic checks are shown below. Choose Analyze to run the AI assessment."
+              : "AI is not configured, so analysis will run automatic checks only.",
         tone: "neutral",
         step: 0,
       };
@@ -74,6 +94,15 @@ export function statusCopy(status: ProcessingStatus, aiConfigured: boolean): Sta
     case "analyzing":
       return { title: "Assessing risk", detail: "Judging the risk and checking every cited quote against the email.", tone: "progress", step: 3 };
     case "complete":
+      if (ctx.provenance === "recorded") {
+        return {
+          title: "Analyzed by AI — recorded",
+          detail:
+            "Replayed from a previously recorded AI response. Every quote it cited was checked against the email before this result was accepted. No email was sent to an AI provider.",
+          tone: "good",
+          step: 4,
+        };
+      }
       return {
         title: "Analyzed by AI",
         detail: "Every quote the AI cited was checked against the email before this result was accepted.",
@@ -122,8 +151,15 @@ export function predicateLabel(p: string): string {
 }
 
 /** Observed AI connection state, from health. Never claims more than was observed. */
-export function aiConnection(h: HealthResponse["llm"] | undefined): { text: string; short: string; tone: "ok" | "warn" | "off" } {
+export function aiConnection(
+  h: HealthResponse["llm"] | undefined,
+  replay?: ReplayStatus,
+): { text: string; short: string; tone: "ok" | "warn" | "off" } {
   if (!h) return { text: "AI status unknown", short: "AI ?", tone: "off" };
+  // Recorded availability is a different thing from a reachable provider and is worded as such.
+  if (!h.configured && replay?.available) {
+    return { text: "Recorded demo analyses available · no AI provider", short: "Recorded", tone: "ok" };
+  }
   if (!h.configured) return { text: "AI not configured · automatic checks only", short: "No AI", tone: "off" };
   switch (h.reachability) {
     case "reachable":

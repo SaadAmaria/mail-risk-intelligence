@@ -21,7 +21,7 @@ export function App() {
   const health = useResource((signal) => api.health(signal), []);
   const mailbox = useMailbox(route, route.q);
   const aiConfigured = health.data?.llm.configured ?? false;
-  const conn = aiConnection(health.data?.llm);
+  const conn = aiConnection(health.data?.llm, health.data?.replay);
 
   // Search text: typing is immediate, the URL and the request follow after a short pause.
   const [query, setQuery] = useState(route.q);
@@ -111,6 +111,7 @@ export function App() {
                 key={route.emailId}
                 id={route.emailId}
                 aiConfigured={aiConfigured}
+                replay={health.data?.replay}
                 backHref={listHref}
                 onChanged={() => {
                   mailbox.refresh();
@@ -130,7 +131,7 @@ export function App() {
       </main>
 
       <Dialog open={route.add} title="Add an email" onClose={() => go({ add: false })}>
-        <AddEmail aiConfigured={aiConfigured} onDone={onAdded} onCancel={() => go({ add: false })} />
+        <AddEmail aiConfigured={aiConfigured} replayAvailable={Boolean(health.data?.replay?.available)} onDone={onAdded} onCancel={() => go({ add: false })} />
       </Dialog>
 
       <div id="announcer" className="sr-only" role="status" aria-live="polite" />

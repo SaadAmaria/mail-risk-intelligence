@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ANALYSIS_STATUSES, type ProcessingStatus } from "@mri/shared";
-import { aiConnection, basisChip, basisLine, errorMessage, RISK_LABEL, statusCopy } from "./copy";
+import { aiConnection, basisChip, basisLine, errorMessage, RECORDED_NOTICE, RISK_LABEL, statusCopy } from "./copy";
 
 describe("risk wording", () => {
   it("never calls an unassessed message 'none' or 'safe'", () => {
@@ -64,5 +64,29 @@ describe("AI connection and errors", () => {
   it("maps known error codes to friendly text and falls back to the server message", () => {
     expect(errorMessage("ocr_unsupported", "x")).toMatch(/scanned image/);
     expect(errorMessage("something_new", "Server said this")).toBe("Server said this");
+  });
+});
+
+describe("recorded provenance wording", () => {
+  it("never lets a replay read as a live call", () => {
+    expect(basisChip("ai_and_rules", "recorded").text).toBe("AI-assessed — Recorded");
+    expect(basisChip("ai_and_rules", "live").text).toBe("AI-assessed — Live");
+    expect(basisChip("rules_only", "rules").text).toBe("Automatic checks only");
+  });
+
+  it("explains that a replay sends nothing, before and after", () => {
+    expect(statusCopy("not_started", false, { mode: "recorded" }).detail).toMatch(/recorded AI analysis/);
+    expect(RECORDED_NOTICE).toMatch(/No email is sent to an AI provider/);
+    const done = statusCopy("complete", false, { provenance: "recorded" });
+    expect(done.title).toMatch(/recorded/);
+    expect(done.detail).toMatch(/No email was sent to an AI provider/);
+  });
+
+  it("describes recorded availability without claiming reachability", () => {
+    const off = { configured: false, provider: null, model: null };
+    const text = aiConnection(off, { available: true, email_ids: ["E1"], model: "m", captured_at: null, problems: [] }).text;
+    expect(text).toMatch(/Recorded demo analyses available/);
+    expect(text).not.toMatch(/reachable/i);
+    expect(aiConnection(off).text).toMatch(/not configured/);
   });
 });

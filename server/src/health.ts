@@ -1,4 +1,4 @@
-import type { HealthResponse } from "@mri/shared";
+import type { HealthResponse, ReplayStatus } from "@mri/shared";
 import type { LlmSettings } from "./llm/config";
 import type { ProviderStatusSnapshot } from "./llm/status";
 
@@ -15,6 +15,7 @@ import type { ProviderStatusSnapshot } from "./llm/status";
 export function buildHealth(
   llm: Pick<LlmSettings, "configured" | "host" | "model" | "problems">,
   observed?: ProviderStatusSnapshot,
+  replay?: ReplayStatus,
 ): HealthResponse {
   const status: ProviderStatusSnapshot = llm.configured
     ? (observed ?? { reachability: "unchecked", last_call_at: null, last_error_kind: null })
@@ -32,6 +33,8 @@ export function buildHealth(
       last_error_kind: status.last_error_kind,
       problems: [...llm.problems],
     },
+    // Present only when no live LLM is configured; says nothing about provider reachability.
+    ...(replay && !llm.configured ? { replay } : {}),
   };
 }
 
@@ -39,8 +42,9 @@ export function buildHealth(
 export function healthHandler(
   llm: Pick<LlmSettings, "configured" | "host" | "model" | "problems">,
   snapshot: () => ProviderStatusSnapshot,
+  replay?: () => ReplayStatus | undefined,
 ) {
   return (_req: unknown, res: { json: (body: HealthResponse) => void }): void => {
-    res.json(buildHealth(llm, snapshot()));
+    res.json(buildHealth(llm, snapshot(), replay?.()));
   };
 }

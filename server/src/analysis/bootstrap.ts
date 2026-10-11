@@ -27,6 +27,6 @@ export function bootstrapAnalysis(service: AnalysisService, options: { autostart
   return {
     recovered,
     autoQueued,
-    externalCallsMayStart: options.autostart && service.hasLlm && recovered.length + autoQueued.length > 0,
+    externalCallsMayStart: options.autostart && service.hasLiveLlm && recovered.length + autoQueued.length > 0,
   };
 }

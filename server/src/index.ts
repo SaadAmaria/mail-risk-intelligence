@@ -3,6 +3,8 @@ import { bootstrapAnalysis } from "./analysis/bootstrap";
 import { AnalysisService } from "./analysis/service";
 import { config } from "./config";
 import { OpenAICompatClient } from "./llm/client";
+import type { LlmClient } from "./llm/types";
+import { setupReplay } from "./replay/setup";
 import { describeSettings } from "./llm/config";
 import { ProviderStatusTracker } from "./llm/status";
 import { initialize, StartupError } from "./startup";
@@ -34,11 +36,27 @@ for (const p of config.llm.problems) console.warn(`llm config: ${p}`);
 // Health reports the last OBSERVED provider outcome; it never calls the provider itself.
 const providerStatus = new ProviderStatusTracker();
 
+// Routing: a valid live configuration always wins. Without one, compatible recorded fixtures
+// enable the recorded demo capability; otherwise analysis stays degraded (rules only).
+let llmClient: LlmClient | null = null;
+let replayStatus: ReturnType<typeof setupReplay>["status"] | undefined;
+if (config.llm.configured) {
+  llmClient = OpenAICompatClient.fromSettings(config.llm, { onResult: (o) => providerStatus.record(o) });
+} else {
+  const replay = setupReplay(config.replayDir, repo);
+  replayStatus = replay.status;
+  llmClient = replay.client;
+  for (const p of replay.status.problems) console.warn(`replay: ${p}`);
+  console.log(
+    replay.client
+      ? `replay: recorded analyses available for ${replay.status.email_ids.length} message(s); no email is sent to a provider`
+      : "replay: no usable recordings; analysis stays rules-only",
+  );
+}
+
 const analysis = new AnalysisService(
   repo,
-  config.llm.configured
-    ? OpenAICompatClient.fromSettings(config.llm, { onResult: (o) => providerStatus.record(o) })
-    : null,
+  llmClient,
   {
     concurrency: config.analysis.concurrency,
     maxRuns: config.analysis.maxRuns,
@@ -73,6 +91,7 @@ const app = createApp({
   corsOrigins: config.corsOrigins,
   llm: config.llm,
   providerStatus: () => providerStatus.snapshot(),
+  replay: () => replayStatus,
   log: (m) => console.warn(m),
 });
 

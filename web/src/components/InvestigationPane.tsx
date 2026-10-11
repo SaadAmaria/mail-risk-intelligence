@@ -1,9 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EmailDetailResponse, RiskIndicator } from "@mri/shared";
+import type { EmailDetailResponse, ReplayStatus, RiskIndicator } from "@mri/shared";
 import { ApiRequestError, api } from "../lib/api";
 import { announce } from "../lib/announce";
 import { buildClaims, type Claim, type SegmentRef } from "../lib/claims";
-import { CATEGORY_LABEL, RISK_LABEL, basisChip, basisLine, predicateLabel, statusCopy, tagLabel, errorMessage } from "../lib/copy";
+import {
+  CATEGORY_LABEL,
+  RECORDED_NOTICE,
+  RISK_LABEL,
+  basisChip,
+  basisLine,
+  predicateLabel,
+  statusCopy,
+  tagLabel,
+  errorMessage,
+} from "../lib/copy";
 import { formatAddresses, formatDateTime, pluralize, senderName } from "../lib/format";
 import { useResource, usePolling } from "../lib/hooks";
 import type { HighlightRange } from "../lib/highlight";
@@ -19,6 +29,7 @@ import s from "./InvestigationPane.module.css";
 interface Props {
   id: string;
   aiConfigured: boolean;
+  replay?: ReplayStatus;
   backHref: string;
   /** Called after the user started analysis so the mailbox list refreshes. */
   onChanged: () => void;
@@ -26,7 +37,7 @@ interface Props {
 
 const POLL_MS = 2500;
 
-export function InvestigationPane({ id, aiConfigured, backHref, onChanged }: Props) {
+export function InvestigationPane({ id, aiConfigured, replay, backHref, onChanged }: Props) {
   const detail = useResource((signal) => api.getEmail(id, signal), [id]);
   const working = detail.data?.processing.in_progress ?? false;
   usePolling(detail.reload, working, POLL_MS);
@@ -82,6 +93,7 @@ export function InvestigationPane({ id, aiConfigured, backHref, onChanged }: Pro
       key={detail.data.email.id}
       detail={detail.data}
       aiConfigured={aiConfigured}
+      replay={replay}
       backHref={backHref}
       refreshing={detail.refreshing}
       refreshError={detail.error}
@@ -105,6 +117,7 @@ function BackLink({ href }: { href: string }) {
 function Loaded({
   detail,
   aiConfigured,
+  replay,
   backHref,
   refreshing,
   refreshError,
@@ -113,6 +126,7 @@ function Loaded({
 }: {
   detail: EmailDetailResponse;
   aiConfigured: boolean;
+  replay?: ReplayStatus;
   backHref: string;
   refreshing: boolean;
   refreshError: Error | null;
@@ -173,8 +187,8 @@ function Loaded({
     announce("Evidence highlighted in the message.");
   };
 
-  const status = statusCopy(processing.status, aiConfigured);
-  const chip = basisChip(risk.basis);
+  const status = statusCopy(processing.status, aiConfigured, { provenance: processing.provenance });
+  const chip = basisChip(risk.basis, processing.provenance);
   const claimsFor = (prefix: string) => claims.filter((c) => c.id.startsWith(prefix));
   const aiClaims = claims.filter((c) => c.group === "ai");
   const checks = risk.indicators.filter((i) => i.identity === undefined);
@@ -254,6 +268,12 @@ function Loaded({
             {chip.kind !== "none" && <Chip kind={chip.kind}>{chip.text}</Chip>}
           </div>
           <p className={s.lead}>{basisLine(risk)}</p>
+          {processing.provenance === "recorded" && risk.basis === "ai_and_rules" && (
+            <p className={s.muted}>
+              Replayed from a recorded AI response{processing.model ? ` (${processing.model})` : ""}. No email was sent to
+              an AI provider.
+            </p>
+          )}
 
           {risk.final_level === "unassessed" && (
             <Callout tone="info" icon="dashed-circle" title="Not assessed does not mean safe">
@@ -298,6 +318,7 @@ function Loaded({
         <AnalysisCard
           detail={detail}
           aiConfigured={aiConfigured}
+          replay={replay}
           refreshing={refreshing}
           refreshError={refreshError}
           reload={reload}
@@ -606,6 +627,7 @@ function IndicatorItem({
 function AnalysisCard({
   detail,
   aiConfigured,
+  replay,
   refreshing,
   refreshError,
   reload,
@@ -614,6 +636,7 @@ function AnalysisCard({
 }: {
   detail: EmailDetailResponse;
   aiConfigured: boolean;
+  replay?: ReplayStatus;
   refreshing: boolean;
   refreshError: Error | null;
   reload: () => void;
@@ -621,7 +644,12 @@ function AnalysisCard({
   title: string;
 }) {
   const { processing, email } = detail;
-  const status = statusCopy(processing.status, aiConfigured);
+  // Recorded mode: no live provider, but compatible recordings exist. Only messages that have
+  // one can be replayed; for the rest the honest answer is "automatic checks only".
+  const recordedMode = !aiConfigured && Boolean(replay?.available);
+  const hasRecording = recordedMode && Boolean(replay?.email_ids.includes(email.id));
+  const mode: "live" | "recorded" | "none" = aiConfigured ? "live" : hasRecording ? "recorded" : "none";
+  const status = statusCopy(processing.status, aiConfigured, { mode, provenance: processing.provenance });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -630,14 +658,19 @@ function AnalysisCard({
   const complete = processing.status === "complete";
   // `can_reprocess` is false for a finished analysis and when the automatic retry limit is hit.
   const limitReached = !inProgress && !complete && !processing.can_reprocess;
-  const canStart = !inProgress && !complete;
+  const noRecording = recordedMode && !hasRecording;
+  const canStart = !inProgress && !complete && !noRecording;
   const label = limitReached
     ? "Run again anyway"
     : processing.status === "not_started"
-      ? aiConfigured
-        ? "Analyze with AI"
-        : "Run automatic checks"
-      : "Retry analysis";
+      ? mode === "recorded"
+        ? "Replay recorded analysis"
+        : aiConfigured
+          ? "Analyze with AI"
+          : "Run automatic checks"
+      : mode === "recorded"
+        ? "Retry replay"
+        : "Retry analysis";
 
   const start = async () => {
     setConfirming(false);
@@ -683,8 +716,10 @@ function AnalysisCard({
       {limitReached && confirming && (
         <Callout tone="warn" icon="alert-circle" role="alert" title="Run this message again?">
           <p>
-            It has already been run the automatic maximum number of times. Running it again sends the text of this one
-            message to the AI service once more.
+            It has already been run the automatic maximum number of times.{" "}
+            {mode === "recorded"
+              ? "Replaying it again uses the recorded response; nothing is sent to an AI provider."
+              : "Running it again sends the text of this one message to the AI service once more."}
           </p>
           <p className={s.confirmRow}>
             <Button variant="primary" onClick={start} busy={busy}>
@@ -697,6 +732,13 @@ function AnalysisCard({
       {canStart && aiConfigured && (
         <p className={s.muted}>
           Choosing this sends the text of this one message to the configured AI service. Nothing is sent until you do.
+        </p>
+      )}
+      {canStart && mode === "recorded" && <p className={s.muted}>{RECORDED_NOTICE}</p>}
+      {noRecording && !complete && !inProgress && (
+        <p className={s.muted}>
+          No recording exists for this message, so only automatic checks are available. Recordings cover the seeded
+          messages only.
         </p>
       )}
       {error && (

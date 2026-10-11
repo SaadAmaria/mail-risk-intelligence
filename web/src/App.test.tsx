@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { EmailDetailResponse, EmailListItem, EmailListResponse } from "@mri/shared";
 import { App } from "./App";
-import { HEALTH_AI, assessedDetail, detail, listItem, listResponse, processing } from "./test/fixtures";
+import { HEALTH_AI, HEALTH_RECORDED, assessedDetail, detail, listItem, listResponse, processing } from "./test/fixtures";
 
 interface Call {
   method: string;
@@ -283,6 +283,59 @@ describe("run again after the retry limit", () => {
     await user.click(screen.getByRole("button", { name: "Yes, run again" }));
     await waitFor(() => expect(posts()).toHaveLength(1));
     expect(posts()[0]!.url).toMatch(/reprocess[?]force=true$/);
+  });
+});
+
+
+describe("recorded demo mode", () => {
+  beforeEach(() => {
+    world.health = HEALTH_RECORDED;
+  });
+
+  it("says recorded analyses are available, never that a provider is reachable", async () => {
+    render(<App />);
+    expect((await screen.findAllByText(/Recorded demo analyses available/)).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/AI reachable/)).toBeNull();
+    expect(posts()).toHaveLength(0);
+  });
+
+  it("offers an explicit replay for a recorded message and explains nothing is sent", async () => {
+    go("/emails/E1");
+    const user = userEvent.setup();
+    render(<App />);
+    const button = await screen.findByRole("button", { name: /Replay recorded analysis/ });
+    expect(screen.getAllByText(/previously recorded AI response\. No email is sent to an AI provider/).length).toBeGreaterThan(0);
+    expect(posts()).toHaveLength(0);
+    await user.click(button);
+    await waitFor(() => expect(posts()).toHaveLength(1));
+    expect(posts()[0]!.url).toMatch(/\/api\/emails\/E1\/reprocess$/);
+  });
+
+  it("offers no replay for a message without a recording and does not call it assessed", async () => {
+    world.details.E2 = detail({ email: { ...detail().email, id: "E2", subject: "Added by hand" } });
+    go("/emails/E2");
+    render(<App />);
+    expect(await screen.findByText(/No recording exists for this message/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Replay recorded analysis|Analyze with AI/ })).toBeNull();
+    expect(document.querySelector('[data-level="none"]')).toBeNull();
+    expect(screen.getAllByText("Not assessed").length).toBeGreaterThan(0);
+  });
+
+  it("labels a replayed assessment as recorded, and a live one as live", async () => {
+    world.details.E1 = assessedDetail({ provenance: "recorded" });
+    go("/emails/E1");
+    const { unmount } = render(<App />);
+    expect((await screen.findAllByText("AI-assessed — Recorded")).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Replayed from a recorded AI response/)).toBeTruthy();
+    expect(screen.queryByText("AI-assessed — Live")).toBeNull();
+    unmount();
+    cleanup();
+
+    world.health = HEALTH_AI;
+    world.details.E1 = assessedDetail({ provenance: "live" });
+    render(<App />);
+    expect((await screen.findAllByText("AI-assessed — Live")).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/Replayed from a recorded/)).toBeNull();
   });
 });
 

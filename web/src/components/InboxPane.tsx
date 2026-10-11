@@ -206,7 +206,7 @@ function Row({
   selected: boolean;
   aiConfigured: boolean;
 }) {
-  const chip = basisChip(email.risk.basis);
+  const chip = basisChip(email.risk.basis, email.processing.provenance);
   const working = isInProgress(email);
   const status = statusCopy(email.processing.status, aiConfigured);
   const showStatus = working || email.processing.status === "failed" || email.processing.status === "partial";

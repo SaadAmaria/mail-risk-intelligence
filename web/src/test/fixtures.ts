@@ -51,6 +51,13 @@ export function listResponse(items: EmailListItem[], total = items.length): Emai
   return { emails: items, total, count: items.length };
 }
 
+export const HEALTH_RECORDED: HealthResponse = {
+  status: "ok",
+  service: "mail-risk-intelligence",
+  llm: { configured: false, provider: null, model: null, reachability: "unchecked" },
+  replay: { available: true, email_ids: ["E1"], model: "recorded-model", captured_at: null, problems: [] },
+};
+
 export const HEALTH_AI: HealthResponse = {
   status: "ok",
   service: "mail-risk-intelligence",
@@ -102,12 +109,14 @@ export function detail(over: Partial<EmailDetailResponse> = {}): EmailDetailResp
 }
 
 /** A completed AI assessment citing a quote that really sits in BODY, plus one that does not. */
-export function assessedDetail(opts: { badOffsets?: boolean } = {}): EmailDetailResponse {
+export function assessedDetail(
+  opts: { badOffsets?: boolean; provenance?: "live" | "recorded" } = {},
+): EmailDetailResponse {
   const quote = "wire $13,900 to account 9902";
   const at = BODY.indexOf(quote);
   const start = opts.badOffsets ? at + 5 : at;
   const d = detail();
-  d.processing = { ...processing({ status: "complete", provenance: "live", can_reprocess: false, run_count: 1 }), warnings: [], runs: [] };
+  d.processing = { ...processing({ status: "complete", provenance: opts.provenance ?? "live", can_reprocess: false, run_count: 1 }), warnings: [], runs: [] };
   d.extraction = {
     schema_version: 1,
     sender: null,

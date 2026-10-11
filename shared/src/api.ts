@@ -4,6 +4,21 @@ export const LLM_REACHABILITY = ["unchecked", "reachable", "unreachable", "crede
 export const LlmReachability = z.enum(LLM_REACHABILITY);
 export type LlmReachability = z.infer<typeof LlmReachability>;
 
+/**
+ * Recorded demo capability. Additive and optional. `available` means compatible recordings
+ * exist; it says nothing about any provider, and replay is never reported as "reachable".
+ */
+export const ReplayStatus = z.object({
+  available: z.boolean(),
+  /** Seed messages that have a usable recording (the only ones that can be replayed). */
+  email_ids: z.array(z.string()),
+  model: z.string().nullable(),
+  captured_at: z.string().nullable(),
+  /** Why some recordings were not used (ids and reasons only). */
+  problems: z.array(z.string()),
+});
+export type ReplayStatus = z.infer<typeof ReplayStatus>;
+
 export const HealthResponse = z.object({
   status: z.literal("ok"),
   service: z.string(),
@@ -23,6 +38,7 @@ export const HealthResponse = z.object({
     // Why the configuration is not usable (messages never contain secret values).
     problems: z.array(z.string()).optional(),
   }),
+  replay: ReplayStatus.optional(),
 });
 export type HealthResponse = z.infer<typeof HealthResponse>;
 

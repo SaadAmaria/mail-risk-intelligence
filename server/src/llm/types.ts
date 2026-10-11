@@ -24,6 +24,11 @@ export interface LlmResult {
 
 export interface LlmClient {
   readonly model: string;
+  /**
+   * Where answers come from. Absent means "live". A recorded client serves stored completions and
+   * performs no network operation; the orchestrator labels the analysis accordingly.
+   */
+  readonly provenance?: "live" | "recorded";
   complete(request: LlmRequest): Promise<LlmResult>;
 }
 
@@ -33,7 +38,9 @@ export type LlmErrorKind =
   | "auth"
   | "rate_limited"
   | "http"
-  | "bad_response";
+  | "bad_response"
+  /** Replay only: no recorded response matches the request. */
+  | "not_recorded";
 
 /**
  * A failed provider call. `message` is sanitized: it never contains credentials, request

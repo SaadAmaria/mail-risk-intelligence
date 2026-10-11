@@ -14,10 +14,13 @@ type Mode = "paste" | "file";
  */
 export function AddEmail({
   aiConfigured,
+  replayAvailable = false,
   onDone,
   onCancel,
 }: {
   aiConfigured: boolean;
+  /** Recorded demo analyses exist (no live provider). */
+  replayAvailable?: boolean;
   onDone: (result: IngestResponse) => void;
   onCancel: () => void;
 }) {
@@ -112,7 +115,9 @@ export function AddEmail({
           <span id="analyze-hint" className={s.hint}>
             {aiConfigured
               ? "Sends this message's text to the configured AI service. Leave unticked to only store it."
-              : "AI is not configured on this server, so only automatic checks will be shown."}
+              : replayAvailable
+                ? "No AI provider is configured. Only seeded messages have recordings; an added message gets automatic checks only."
+                : "AI is not configured on this server, so only automatic checks will be shown."}
           </span>
         </span>
       </div>

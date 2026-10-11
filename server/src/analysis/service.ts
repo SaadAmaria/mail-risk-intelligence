@@ -74,6 +74,15 @@ export class AnalysisService {
     return this.llm !== null;
   }
 
+  /** True only when answers come from a real provider (a recorded client makes no external call). */
+  get hasLiveLlm(): boolean {
+    return this.llm !== null && this.provenance === "live";
+  }
+
+  private get provenance(): "live" | "recorded" {
+    return this.llm?.provenance ?? "live";
+  }
+
   /** True while this email is waiting in, or running from, the in-process queue. */
   isActive(emailId: string): boolean {
     return this.queue.has(emailId);
@@ -90,11 +99,20 @@ export class AnalysisService {
 
     const prior = this.repo.getAnalysis(emailId);
     if (prior?.status === "complete" && !opts.force) return "skipped_complete";
+    // A recording never replaces a finished analysis that came from a live provider.
+    if (prior?.status === "complete" && prior.provenance === "live" && this.provenance === "recorded") {
+      return "skipped_complete";
+    }
     if (prior && prior.runs.length >= this.options.maxRuns && !opts.force) return "max_runs_reached";
     // Checked before writing, so a rejected email is never left marked "queued" with no job.
     if (this.queue.pending >= this.options.queueCapacity) return "queue_full";
 
-    const resumable = prior && prior.provenance === "live" && prior.status !== "complete" ? prior.extraction : null;
+    // Live and recorded answers are never mixed inside one analysis: a stored live extraction is
+    // only resumed by a live client, and a recorded run always starts from the beginning.
+    const resumable =
+      prior && prior.provenance === "live" && prior.status !== "complete" && this.provenance === "live"
+        ? prior.extraction
+        : null;
     this.repo.saveAnalysis({
       email_id: emailId,
       status: "queued",
@@ -236,7 +254,7 @@ export class AnalysisService {
       save({ status: "extracting" });
 
       // Resume: a validated live extraction from an earlier, incomplete run is not redone.
-      if (prior?.extraction && prior.provenance === "live" && prior.status !== "complete") {
+      if (prior?.extraction && prior.provenance === "live" && prior.status !== "complete" && this.provenance === "live") {
         extraction = prior.extraction;
         run.stages.push(stage("extraction", { outcome: "skipped" }));
       } else if (this.llm === null) {
@@ -294,7 +312,7 @@ export class AnalysisService {
         finish("partial", { provenance: "live", extraction });
         return;
       }
-      save({ status: "analyzing", provenance: "live", extraction });
+      save({ status: "analyzing", provenance: this.provenance, extraction });
 
       let assessment: RiskAnalysis;
       try {
@@ -327,11 +345,11 @@ export class AnalysisService {
             ? "The model's proposed risk finding could not be verified against the email, so it was withheld; the email has not been assessed."
             : `Risk analysis failed (${e.llmKind ?? e.kind}); the email has not been assessed.`,
         );
-        finish("partial", { provenance: "live", extraction });
+        finish("partial", { provenance: this.provenance, extraction });
         return;
       }
 
-      finish("complete", { provenance: "live", extraction, assessment });
+      finish("complete", { provenance: this.provenance, extraction, assessment });
     } catch (err) {
       // Anything unexpected (storage error, bug): record a failure; never leave "in progress".
       this.log(`analysis ${emailId}: unexpected error (${err instanceof Error ? err.name : "unknown"})`);
@@ -344,7 +362,7 @@ export class AnalysisService {
         }),
       );
       try {
-        finish("failed", { provenance: extraction ? "live" : null, extraction });
+        finish("failed", { provenance: extraction ? this.provenance : null, extraction });
       } catch (writeErr) {
         this.log(`analysis ${emailId}: could not record failure (${writeErr instanceof Error ? writeErr.name : "unknown"})`);
       }

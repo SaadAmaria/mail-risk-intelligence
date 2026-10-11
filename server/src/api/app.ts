@@ -18,7 +18,7 @@ import {
   STATUS_FILTERS,
   type ViewDeps,
 } from "./views";
-import type { IngestResponse, ReprocessResponse } from "@mri/shared";
+import type { IngestResponse, ReplayStatus, ReprocessResponse } from "@mri/shared";
 
 export interface ApiDeps {
   repo: MailboxRepository;
@@ -32,6 +32,8 @@ export interface ApiDeps {
   /** Used only by /api/health: validated settings and the last observed provider outcome. */
   llm: Pick<LlmSettings, "configured" | "host" | "model" | "problems">;
   providerStatus: () => ProviderStatusSnapshot;
+  /** Recorded demo capability for /api/health (optional). */
+  replay?: () => ReplayStatus | undefined;
   log?: (message: string) => void;
 }
 
@@ -69,7 +71,7 @@ export function createApp(deps: ApiDeps): Express {
   });
 
   // ---- health ---------------------------------------------------------------------------
-  app.get("/api/health", healthHandler(deps.llm, deps.providerStatus));
+  app.get("/api/health", healthHandler(deps.llm, deps.providerStatus, deps.replay));
 
   // ---- list -----------------------------------------------------------------------------
   app.get(

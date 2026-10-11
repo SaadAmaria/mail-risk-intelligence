@@ -8,6 +8,7 @@ import { ProviderStatusTracker } from "../llm/status";
 import type { LlmClient, LlmRequest, LlmResult } from "../llm/types";
 import { MemoryRepository } from "../storage/memoryRepository";
 import type { MailboxRepository } from "../storage/repository";
+import type { ReplayStatus } from "@mri/shared";
 import { WIRE_BODY } from "./agentFixtures";
 
 export interface Started {
@@ -35,6 +36,7 @@ export interface StartOptions {
   llmSettings?: Pick<LlmSettings, "configured" | "host" | "model" | "problems">;
   maxRuns?: number;
   queueCapacity?: number;
+  replay?: ReplayStatus;
 }
 
 async function read(res: Response) {
@@ -70,6 +72,7 @@ export async function startApi(opts: StartOptions = {}): Promise<Started> {
     limits: opts.limits,
     llm: opts.llmSettings ?? loadLlmSettings({}),
     providerStatus: () => tracker.snapshot(),
+    replay: () => opts.replay,
     log: (m) => logs.push(m),
   });
   const server: Server = await new Promise((resolve) => {

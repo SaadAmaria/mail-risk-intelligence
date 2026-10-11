@@ -84,7 +84,7 @@ export function Welcome({
           ) : (
             <ul className={s.picks}>
               {picks.map((e) => {
-                const chip = basisChip(e.risk.basis);
+                const chip = basisChip(e.risk.basis, e.processing.provenance);
                 return (
                   <li key={e.id}>
                     <Link href={buildUrl({ ...DEFAULT_ROUTE, emailId: e.id })} className={s.pick}>
@@ -117,12 +117,21 @@ export function Welcome({
           <dl className={s.legend}>
             <div>
               <dt>
-                <Chip kind="ai">AI-assessed</Chip>
+                <Chip kind="ai">AI-assessed — Live</Chip>
               </dt>
               <dd>
                 {aiConfigured
-                  ? "The AI judged the message, and every quote it cited was checked against the email."
+                  ? "The AI judged the message through a live provider call, and every quote it cited was checked against the email."
                   : "Available once an AI service is configured. Quotes the AI cites are checked against the email."}
+              </dd>
+            </div>
+            <div>
+              <dt>
+                <Chip kind="ai">AI-assessed — Recorded</Chip>
+              </dt>
+              <dd>
+                A previously recorded AI response, replayed and checked against the email in the same way. No email is
+                sent to an AI provider.
               </dd>
             </div>
             <div>

@@ -752,6 +752,123 @@ authenticity.
   `From` address can wrap at a hyphen in the three-column metadata grid.
 - **Next:** independent review; nothing committed or pushed.
 
+## 2026-10-11 — Phase 5.1 commit (factual note)
+
+- **Phase 5.1 commit:** `f3065ffc0eed515997176424162a499822983228`
+  (`feat(web): refine premium investigation UX and responsive layout`) was pushed to
+  `origin/main` on authorization: 20 files, 68 web tests and 514 server tests passing, local
+  `HEAD`, `origin/main` and `git ls-remote` matched, tree clean. It is the baseline of Phase 6.
+
+## 2026-10-11 — Phase 6: recorded AI analysis and verified demo replay (uncommitted)
+
+- **Prompt (summary):** after a read-only plan (reviewed), implement replay at the `LlmClient`
+  boundary so recorded completions pass the same validation as live ones; versioned fixtures with
+  integrity and compatibility metadata; an operator-controlled recorder (dry run by default, fake
+  provider in tests); activation only when no live LLM is configured; clear live/recorded labels;
+  safe failure handling; tests. **Restrictions: no seed email may be sent to Groq or any provider,
+  no live recording, no hand-authored "recorded" outputs, no commit.**
+- **Implemented (Claude):**
+  - `server/src/replay/`: `fixture.ts` (zod format, canonical JSON, nonce-normalized request
+    hash, integrity), `loader.ts` (bounded, manifest-driven, compatibility against the CURRENT
+    emails and pipeline), `recordedClient.ts` (`RecordedLlmClient`), `recorder.ts`
+    (`RecordingLlmClient`, `recordFixtures`, secret scan), `setup.ts`, `recordCli.ts`
+    (`npm run record -w server`);
+  - `AnalysisService` takes the provenance from the client (`live` | `recorded`) instead of the
+    four hard-coded `"live"` writes; no mixing; a recording never replaces a finished live analysis;
+  - additive optional `replay` object on `GET /api/health` (`ReplayStatus` in `shared`);
+  - composition root: live wins, else compatible recordings, else rules-only;
+  - frontend: "AI-assessed — Live" / "AI-assessed — Recorded" labels, an explicit
+    "Replay recorded analysis" action with the required notice, "No recording exists" state,
+    health pill "Recorded demo analyses available · no AI provider".
+- **Genuine state of recorded outputs:** **none exist.** `fixtures/recorded/` still contains only
+  `.gitkeep`. Nothing was sent to Groq, the recorder was never run with `--send`, and no fixture
+  was hand-written. Every fixture produced in this phase came from a scripted FAKE provider in a
+  temporary directory (tests) or from one synthetic smoke email, and was deleted.
+- **Failures and corrections (not hidden):**
+  1. My test helper for the recorder first used an overly clever parameter type; simplified.
+  2. A test sealed a fixture while spreading an object that already contained `integrity`
+     (accepted by the client, which does not check integrity, but sloppy); corrected to strip it.
+  3. A first copy of the replay notice appeared twice on the pre-replay screen (status line and
+     helper text); removed the duplicate.
+  4. A security hook warned about `child_process.exec`; the test helper I had named `exec` uses
+     `spawnSync` with an argument array (no shell). Renamed to `runCli` to avoid the confusion.
+- **Executed validation:**
+  - typecheck 0 errors; `npm test`: server **28 files / 544 tests** (+30 in `replay.test.ts`),
+    web **10 files / 75 tests** (+7); build exit 0.
+  - **Real stack smoke (replay mode):** real Express + Vite + headless Edge, no LLM variables, a
+    temporary DB, a synthetic 2-email seed and a fixture recorded from a scripted FAKE provider:
+    health `configured:false, reachability:unchecked, replay.available:true`; "Recorded demo
+    analyses available · no AI provider"; explicit replay -> High risk, "AI-assessed — Recorded",
+    5 verified highlights, list chip updated; the unrecorded message shows "No recording exists"
+    and stays "Not assessed"; restart on the same DB keeps `complete / recorded` and starts nothing.
+  - Recorder CLI (spawned, no LLM env): dry run exits 0 and prints the plan; `--send` without the
+    matching count exits 2; with it but no LLM configuration exits 2; a non-seed id exits 1.
+- **Not verified / limitations (honest):**
+  - No real Groq recording exists, so replay of real model output is **untested**; the format and
+    code are exercised only with scripted fakes. A real capture may reveal provider-specific issues
+    (long reasoning content, unusual finish reasons, token field differences).
+  - Recordings are valid only while the prompts, parsing code and seed text are unchanged.
+  - The integrity hash shows consistency, not authorship.
+  - Capture date is available in health but not shown per message in the UI.
+- **Next:** independent review; a live recording needs a separate explicit authorization.
+
+## 2026-10-11 — Phase 6 recorder reliability corrections (uncommitted)
+
+- **Prompt (summary):** the E004 dry-run preflight was accepted with two findings; correct ONLY:
+  (1) recording a new email must not drop existing valid recordings from the manifest, and
+  (2) the hard-coded `attempt = 1 / attempts_made = 1` must become accurate or fail clearly.
+  No `--send`, no real recording, no risk-engine or prompt change, no commit.
+- **Defects as reported (both were real and were mine):**
+  1. `recordFixtures` built `index.json` from only the fixtures verified in the current run, so a
+     second run would drop the first email from the manifest (its file would then be "unlisted"
+     and ignored). It also wrote `<id>.json` over any existing file.
+  2. The CLI stored `attempt: 1, attempts_made: 1` for every recording, so a repeated recording
+     would have been presented as the first.
+- **Fix (1), incremental publication:** existing entries are inspected individually first
+  (`inspectRecordings`: manifest, schema, integrity, current content hash, prompt/schema
+  versions). Valid ones are preserved; the merged manifest is sorted by email id. An id that
+  already has a recording (listed or merely on disk) is **refused before any provider call**
+  unless named in `overwrite`. An unusable manifest, or any unusable existing entry that is not
+  being overwritten, stops the run before any provider call and is reported. New files use a
+  versioned name when `<id>.json` exists, so a file the current manifest points at is never
+  written over; the manifest is replaced last in one atomic rename; replaced files are removed only
+  after that. A failure at any earlier point leaves the previous set untouched.
+- **Fix (2), attempt provenance:** a first recording of an id is attempt 1. A repeat requires an
+  explicit `--overwrite <id>`; its attempt is the previous recording's `attempts_made + 1` (so
+  2, then 3, ...). If the previous recording cannot be read, the repeat is refused unless the
+  operator declares `--attempt N` (an integer of 2 or more, only valid with `--overwrite`);
+  nothing is guessed. `attempt` and `attempts_made` are equal for the latest recording.
+- **Alternatives considered:** merging silently on every run (rejected: hides corrupted or stale
+  entries); deleting unusable entries automatically (rejected: destructive, silent); a recording
+  history file (rejected: the request was to avoid a history system); embedding the count only in
+  the manifest (rejected: lost with the manifest); writing every fixture to a versioned name
+  (rejected: churns names for no benefit on first recordings).
+- **Dry run:** now also prints the existing set (valid / unusable, with attempt) and which ids a
+  real run would refuse. Executed: `npm run record -w server -- --ids E004` printed "existing :
+  no recordings" and "DRY RUN: nothing was sent"; `fixtures/recorded/` still holds only
+  `.gitkeep`.
+- **Executed validation:**
+  - typecheck 0 errors; `npm test`: server **28 files / 559 tests** (+15 in `replay.test.ts`:
+    two-email incremental record, deterministic order, duplicate refusal before a provider call,
+    explicit overwrite attempts 2 and 3, overwrite with nothing to overwrite, corrupted existing
+    fixture, declared attempt, stale existing recording, unusable manifest, failed second
+    recording, crash before manifest publication, crash during an overwrite, consistency after a
+    restart, dry-run reporting, `--attempt` guard), web 10 files / 75 tests; build exit 0.
+  - **Mutation check** (temporary, restored byte-identical, verified by hash): dropping existing
+    manifest entries -> 4 tests fail; recording a repeat as attempt 1 -> 2; not refusing a
+    duplicate before the provider call -> 2; unsorted manifest -> 1.
+  - No provider was contacted: every recorder test uses a scripted fake; the CLI tests run with
+    no LLM variables; `--send` was never executed. No fixture exists in the repository.
+- **Remaining limitations:**
+  - Attempt tracking is per output directory. A recording that was deleted by hand leaves no
+    trace, so a re-recording of that id counts as attempt 1; `--attempt` is operator-declared.
+  - Two recorder processes running at the same time are not guarded against.
+  - Superseded file removal is best-effort after the manifest swap (a leftover is "unlisted" and
+    ignored, never used).
+  - Integrity is consistency, not authorship (unchanged).
+  - Real Groq output has still never been recorded or replayed.
+- **Next:** independent review; a live recording needs its own explicit authorization.
+
 
 ---
 
