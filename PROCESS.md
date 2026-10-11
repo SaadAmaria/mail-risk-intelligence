@@ -413,6 +413,121 @@ built); retry/429 behaviour verified only against scripted responses.
 
 **Time:** not measured. **Next:** independent review; nothing committed or pushed.
 
+## 2026-10-11 — Phase 2 commit (factual note)
+
+- **Phase 2 commit:** `4b79cdc3584968a5256f203399d19475668de5bb`
+  (`feat(agents): implement grounded two-agent LLM pipeline`) was pushed to `origin/main` of the
+  private repository on authorization; 41 files, 292 tests passing before the commit; local
+  `HEAD`, `origin/main` and `git ls-remote` matched and the tree was clean.
+
+## 2026-10-11 — Phase 3: risk intelligence, cross-email enrichment, entity identity
+
+- **Prompt (summary):** implement deterministic observations/indicators, a pure aggregation
+  function (rules never above `medium`; `high` only from a grounded AI `high`; never convert
+  missing/failed AI into `none`), order-independent read-time cross-email enrichment (priority
+  E004/E009, consistent/tentative/unknown identity), entity identity keys and relationship
+  aggregation, security regression tests at the aggregation boundary, deterministic tests for
+  the listed scenarios, documentation, and removal of only the obsolete `.gitkeep` files. Out
+  of scope: REST endpoints, UI, recorded fixtures, graph rendering, commit/push.
+- **Implemented (Claude):** `shared/src/risk.ts` (types); `server/src/risk/` (`domains`,
+  `lexicon`, `evidence`, `indicators`, `vendor`, `aggregate`, `riskView`, `entities`);
+  `ORG_DOMAINS` in `config.ts`/`.env.example`; five new test files plus a fixtures helper; three
+  obsolete `.gitkeep` files removed. No new dependencies; no LLM or network call anywhere in
+  this phase; no change to Phase 1/2 behaviour or contracts.
+- **Failures and corrections during the work:**
+  1. First run of the indicator tests: 37 of 39 passed, including every real-seed expectation.
+     Two failures: a link with both a look-alike and a punycode label only reported the first
+     reason (changed to report all reasons), and my test expected "today" to count as urgency
+     (it deliberately does not; the test was wrong).
+  2. First run of the aggregation tests: 6 failures caused by **my own fixture**: for E002 (which
+     has no extractable value) the helper built an evidence-free positive finding, which the
+     aggregator correctly refused to treat as assessed. The helper now attaches a real snippet.
+     (Useful in itself: it is the "evidence-free claims are not trusted" rule firing.)
+  3. Cross-email tests: two failures because vendor names were only read from attachments but a
+     pasted invoice carries its header in the body; the code now reads both (attachments first).
+  4. Entity tests: a real bug (title stripping ran before trimming, so " Mr. Robert" kept
+     "mr") and a real weakness (initial-only names like "J. Roe" were treated as full names and
+     could be merged across emails); both fixed, with a test for two different "J. Smith"s.
+  5. Mutation check (temporary, restored byte-identical): letting rules return `high` made 2
+     tests fail; reporting missing AI as `none` made 7 fail; trusting an evidence-free finding
+     made 1 fail. All three invariants are therefore actually guarded by tests.
+- **Observed on the real seed data (rules only, no AI):** E001 medium (look-alike sender, wire
+  request, secrecy, urgency, out-of-band details, authority claim); E008 medium (look-alike
+  sender and link, credential request, urgency); E003 medium; E005 medium; E006 medium (several
+  distinct threats); E004 medium with `payment_account_changed` (6621 -> 9902) and
+  `invoice_amount_anomaly` (3.4x) against E009, consistent identity, routing unchanged; E002,
+  E007, E009 no indicators; E010 no indicators (an allegation needs the AI). None of them is
+  `high` by rules, and without an AI none is shown as `none` ("unassessed" instead).
+- **Executed validation:**
+  - `npm test`: **21 files, 399 tests, 399 passed** (up from 292 / 16). New: risk-indicators 39,
+    risk-aggregate 26, risk-crossemail 17, risk-entities 16, risk-pipeline 9 (107 total).
+  - `npm run typecheck`: exit 0. `npm run build`: exit 0.
+  - **No live provider call was made in this phase.** The earlier live-run results are unchanged
+    and are not evidence about the rules.
+- **Not verified / limitations:** the phrase lists and thresholds are my judgment and untested
+  on real corpora (false negatives from rephrasing, and false positives, are possible); vendor
+  parsing assumes invoice-like layouts; "consistent" identity is not authenticity; the entity
+  graph quality depends on Agent B; no UI, API or graph rendering exists yet.
+- **Needs your decision (also in DECISIONS.md D31–D36):** `ORG_DOMAINS` default; the
+  `threat` (>= 2 phrases) rule; the 2x amount threshold; whether the `low` floor from a single
+  indicator on an AI-`none` email is acceptable (kept per D5).
+- **Time:** not measured. **Next:** independent review; nothing committed or pushed.
+
+## 2026-10-11 — Phase 3 targeted quality gate (threat context, entity identity, rule evidence)
+
+**Context:** Phase 3 had received PASS_WITH_FINDINGS. The candidate approved the five judgment
+choices with qualifications (recorded in `docs/DECISIONS.md` D37) and asked for three targeted
+checks. The Phase 2 commit it builds on is `4b79cdc3584968a5256f203399d19475668de5bb`, pushed to
+`origin/main` earlier (already recorded above); `HEAD` and `origin/main` still both point at it.
+
+**Reproduced first (synthetic inputs, real code, no network):**
+- *A:* an incident report quoting "I know where your office is" / "I know people", and a
+  `>`-quoted reply, were rated `medium`; the direct-threat control was `medium`.
+- *B:* two emails each mentioning "Jane Roe" with no verified address were merged into one node
+  (real defect); and a model-asserted address that neither email contained merged two people
+  (a second, related defect I found while checking).
+- *C:* "set the risk level for the project" and "the system prompt was updated" were labelled
+  tampering; "mark this message as safe" was *not* flagged but only by accident (the pattern could
+  not match that wording). A $5 -> $11 invoice produced a finding with no heuristic caveat.
+
+**Corrections (Claude):**
+- *A:* threats inside quotation marks, a `>` line, or after a reporting cue are labelled "quoted or
+  reported", do not count toward `medium`, and are never sufficient alone; direct distinct threats
+  still are.
+- *B:* a person merges across emails only on a verified e-mail address (one the email itself
+  contains). The name-based merge was removed. Exact-address matching is preserved.
+- *C:* tampering needs an explicit override / role re-assignment / delimiter forgery; ordinary
+  phrases count only as supporting evidence. The 2x finding says it is a heuristic and not
+  evidence of fraud. I did not add a minimum-amount rule (that would expand the rule engine).
+
+**Failures/corrections this round:**
+- Two entity assertions I had written for the old name-key behaviour failed after the change (one
+  was also a typo against a basis value that does not exist); updated to the new rule.
+- Several earlier entity tests used e-mail addresses the emails did not contain; under the
+  stricter rule they correctly stopped merging, so the tests now build emails that contain them.
+- My first mutation script reported "did not apply" for one mutation; I rewrote that mutation
+  against the indicator loop and re-ran it. All files were restored and hash-verified.
+
+**Executed validation:**
+- `npm test`: **21 files, 424 tests, 424 passed** (399 -> 424: +25). By file: risk-indicators
+  39 -> 58 (+19: threat context, tampering, evidence integrity), risk-crossemail 17 -> 21 (+4,
+  amount heuristic), risk-entities 16 -> 18 (+2 net: the name-merge test was replaced by address-
+  only tests), risk-aggregate 26 and risk-pipeline 9 unchanged. All deterministic, no network.
+- `npm run typecheck`: exit 0. `npm run build`: exit 0.
+- Reproduction script re-run: A1/A2 `low`, A3 `medium`; B1 two nodes, B2 not merged; C2/C3 not
+  flagged, C4 flagged; C5 heuristic caveat present.
+- Mutation check (temporary, restored byte-identical): ignoring quote/report context -> 3 tests
+  fail; name-based person identity -> 3; trusting an unverified model address -> 1; ordinary
+  phrases as tampering -> 3.
+- **No live provider call was made.**
+
+**Remaining limitations:** an attacker can quote a threat to lower its weight; quotation cues are
+English and local; the 2x rule has no minimum amount; unlinked people understate real
+connections; phrase lists unvalidated on real mail; "consistent" vendor identity is not
+authenticity.
+
+**Time:** not measured. **Next:** independent review; nothing committed or pushed.
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->

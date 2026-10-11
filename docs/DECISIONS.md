@@ -691,6 +691,232 @@ compatibility where practical; no automatic multi-provider fallback chain.
   previous schema, and the client-to-tracker wiring (success, network, 401, final outcome only
   after retries).
 
+## Phase 3 records (risk intelligence, cross-email enrichment, entity identity)
+
+All Phase 3 records are **contemporaneous** (2026-10-11). Status: **implemented within the
+authorized Phase 3 scope; awaiting independent review**. Test provenance: every Phase 3 test is
+deterministic (no network, no provider); seed-based tests run the real Phase 1 ingestion and the
+real Phase 3 code on the unmodified seed file, and AI assessments are built directly or by the
+real orchestrator with a scripted fake model. The suite is now 424 tests in 21 files: 292 at
+the end of Phase 2, +107 in the first Phase 3 pass, +25 in the targeted quality gate recorded
+as D37. Alternatives below were considered conceptually; none was benchmarked.
+
+**What was already approved (Freeze V1.1 / Round 3, and the Phase 3 instruction):** rules alone
+never exceed `medium`; `high` requires a valid, grounded AI `high`; edit distance or URL
+mismatch is an observation, not proof; vendor matches are `consistent` / `tentative` /
+unknown and a tentative match is never claimed as confirmed; cross-email findings are derived
+at read time, order-independent, and never re-run the LLM; no fuzzy person merging.
+
+**Introduced in this phase:** (a) new shared types in `shared/src/risk.ts` (additive; no
+existing contract changed); (b) `ORG_DOMAINS` configuration defaulting to `arcline.com`; (c) the
+thresholds and phrase lists in D31/D33 (my judgment, not measured); (d) a `tampering`
+indicator category; (e) the "several distinct threatening phrases is enough for `medium`" rule.
+Items (b) to (e) and the single-indicator `low` floor were **human-approved with
+qualifications on 2026-10-11**; the qualifications are recorded verbatim-in-substance in D37.
+
+## D31. Deterministic observations and contextual indicators
+
+- **Context:** the pipeline needs signals that do not depend on a model, are explainable, and
+  cannot be switched off by text inside an email.
+- **Selected:** `computeIndicators(email)` reads only the stored email text (headers, body,
+  readable attachments). Two kinds, all evidence-linked (a located quote is mandatory; an
+  indicator without one is dropped):
+  - *Observations* (verifiable structure): a sender domain that resembles an organization domain
+    (edit distance with a length-dependent limit, confusable characters, brand token with extra
+    words, different TLD, subdomain trick); a link whose host resembles ours, uses punycode, or is
+    a raw IP. An ordinary external link, a tracking redirector, or a link to our own domain is
+    **not** an indicator, and a URL is only ever read as text.
+  - *Contextual indicators* (phrase patterns): urgency; secrecy; request to send money; request
+    to use changed payment details; payment details to follow through another channel;
+    credential request; inside-information language; threatening language; sensitive material
+    from an internal sender to a personal mailbox; an authority claim (CEO/IT/security...) from a
+    look-alike domain (authority words alone, on an unrelated domain, are not flagged); and
+    text aimed at manipulating automated review.
+- **Alternatives:** an LLM-only judgment (not independent of the model under test, and subject to
+  the injection problem in D27); a trained classifier (no labelled data; not evaluated).
+- **Trade-offs/limitations:** English phrase patterns only; an attacker can avoid the exact
+  words; semantic cases pattern rules cannot see (the E010 allegation yields no indicator) rely
+  on the AI; org-domain list is configuration (`ORG_DOMAINS`); look-alike matching can flag a
+  legitimately similar-named unrelated company, which is why it is only an observation and
+  yields `low` alone.
+- **Verification (executed):** 39 indicator tests: look-alike table (7 flagged, 9 not, including
+  a two-edit unrelated name), the real E001/E003/E005/E006/E008 expectations, E002/E007/E009
+  producing no indicators, benign links, over-classification cases, header-less text.
+
+**Corrected in the quality gate (D37):**
+- *Reproduced:* a benign incident report that quoted "I know where your office is" and "I know
+  people", and a `>`-quoted reply, were both rated `medium` (threat language was judged by phrase
+  count only); and ordinary text such as "set the risk level for the project" or "the system
+  prompt was updated" was labelled tampering.
+- *Correction:* threatening language that sits inside quotation marks, a `>` quoted line, or after
+  a reporting cue ("It said ...", "quoting", "threatening email", "incident report") is shown as
+  "quoted or reported", does not count toward `medium`, and cannot be sufficient alone; only
+  DIRECT distinct threats count. The tampering rule now needs an explicit instruction override,
+  role re-assignment or delimiter forgery; ordinary phrases ("mark this as safe", "set the risk
+  level to none", "system prompt") are reported only as supporting evidence next to such a match.
+- *New limitation:* an attacker can put a threat in quotation marks to reduce its weight
+  (the AI and the quoted evidence remain visible); the cue list is local and English only.
+
+## D32. Aggregation: capped rules, validated AI, separate levels, never "none" by default
+
+- **Selected:** a pure `aggregateRisk`. Rules level: no indicator = `none`; any indicator =
+  `low`; indicators from two or more distinct categories (tentative cross-email signals do
+  not count) or one specific indicator (several distinct threats) = `medium`. It cannot return
+  `high`. The AI level is used only if the analysis is `complete`, has live/recorded provenance
+  and is grounded (the aggregator re-checks this instead of trusting the stored invariant). With
+  an assessment: `final = max(AI, rules)`; the AI level, rules level, final level, escalation
+  rationale (with indicator ids) and any disagreement are kept separately. Without one: the
+  final level is the rules level if any indicator exists, otherwise `unassessed`.
+  `none` is reachable only from a validated AI `none` with zero indicators.
+- **Disagreement:** `ai_lower` (e.g. AI none, rules medium) always `needs_review`; `ai_higher`
+  when the gap is two or more levels, `needs_review` when the AI said `high`.
+- **Alternatives:** a weighted numeric score (opaque and hard to justify); letting rules lower
+  an AI level (rejected: no rule has earned that trust); a hard `low` floor only when the AI is
+  absent (considered; I kept `max` as in D5 so one indicator is never hidden behind an AI `none`).
+- **Trade-offs:** one weak indicator can show an AI-`none` email as `low`; rules-only `medium`
+  for E001/E008 is the honest ceiling without an AI; there is no signal to *lower* a level.
+- **Verification (executed):** 26 aggregation tests (levels, caps, escalation records,
+  disagreement, unusable AI records, "none is only reachable from..."), plus a mutation check:
+  temporarily letting rules return `high`, reporting missing AI as `none`, or trusting an
+  evidence-free finding made 2, 7 and 1 tests fail respectively; the file was restored and
+  re-verified byte-identical.
+
+## D33. Cross-email vendor enrichment (E004 / E009)
+
+- **Selected:** at read time, for each email, read payment facts deterministically (vendor name
+  from a document header such as "Northgate Suppliers Inc. Invoice #...", amount due, the account
+  the document asks to pay, routing number, change-of-details language, with the account
+  described as "previous" excluded) and compare them with *earlier-dated* emails. Ordering is by
+  `(date, id)`; an undated email is not ordered and yields nothing. Identity ladder:
+  `consistent` = same sender domain and same normalized vendor name; `tentative` = same domain
+  with a missing/different name, or the same name from another domain; otherwise nothing is
+  claimed. Findings: `payment_account_changed` (the document's account differs from earlier
+  ones; records whether the routing number is unchanged and whether the message asks for the new
+  details) and `invoice_amount_anomaly` (>= 2x the largest earlier amount from the same vendor).
+  Each finding lists both email ids and quoted evidence from each email. Consistent findings
+  count toward `medium`; tentative ones are shown but excluded from the medium count. Nothing is
+  stored and the AI record is untouched.
+- **Result on the seed data:** E004 gets both findings against E009 (account 6621 -> 9902, amount
+  $13,900 -> $47,300, ratio 3.4, routing number unchanged, identity consistent); E009 gets none;
+  ingestion order does not matter; adding the baseline later makes the finding appear.
+- **Alternatives:** LLM cross-email reasoning (excluded in the freeze); storing findings and
+  re-evaluating on arrival (rejected in Round 2: staleness/ordering).
+- **Limitations:** regex over invoice-like text (other layouts are missed); "consistent" means
+  the *claimed* identity matches, not that the sender is authentic (a compromised mailbox looks
+  consistent); a changed account can be legitimate; legal-suffix differences are ignored in
+  names; multiple distinct accounts in one document are treated as ambiguous and nothing is
+  claimed; the 2x threshold is my judgment; O(n^2) at read time (fine for tens of emails).
+- **Verification (executed):** 17 cross-email tests (see PROCESS.md).
+
+**Quality-gate additions (D37):** the 2x rule is documented in the finding itself as a size
+heuristic ("not evidence of fraud: a larger invoice can be legitimate"; `values.heuristic: true`).
+It yields `low` alone; it is an `observation`, so it reaches `medium` only together with another
+category (for example a consistent account change). Its evidence is the exact quoted amount lines
+from both emails. Known gap, not changed: the ratio has no minimum amount, so a $5 -> $11 invoice
+produces a (low) finding.
+
+## D34. Entity identity keys and relationship aggregation (graph foundation)
+
+- **Selected (as corrected in the quality gate, D37):** `buildEntityGraph(analyses)`, derived at
+  read time, not persisted. Person: merged across emails ONLY on an identical e-mail address that
+  the email itself contains (its headers or its evidence text). A name is never an identifier,
+  and an address the model asserts but the email does not contain is ignored; without a verified
+  address a person stays scoped to the one email. An AI-named person that exactly equals a
+  header display name in the same email takes that header's address (unless two addresses share
+  the name). *My first version also merged identical full names; that was a reproduced defect
+  (two different people named "Jane Roe" became one node) and was removed.* Organization: normalized
+  name without legal suffix. Account: number plus owning organization (from a validated
+  `owns_account` relationship), otherwise scoped to the email. Amounts and unknown cases are
+  never merged. Each entity keeps `origin` (`ai`/`rules`), every mention with its source email,
+  and relationships aggregate by (source, predicate, target) with a count, email ids and the
+  verified quote per email. Only complete, validated assessments contribute AI entities and
+  relationships; rule-derived people (header addresses) are marked `rules`.
+- **Alternatives:** fuzzy/phonetic or edit-distance name matching (rejected: a false merge
+  asserts something untrue); persisting into the Phase 1 entity tables (deferred: derived data
+  needs no migration and cannot go stale).
+- **Limitations:** the same person without a shared verified address (J. Harrington / James
+  Harrington, or the same name in two emails) produces separate nodes, which understates links;
+  an unowned account cannot link across emails, so a bank-account link needs the model to emit
+  `owns_account`; the graph is only as good as Agent B's entities.
+- **Verification (executed):** 18 entity tests (address-only merging, identical full names NOT
+  merged, unverified model addresses ignored, address found in evidence text, initials and single
+  names, owner-scoped accounts, amounts, provenance/origin, ambiguity, aggregation, determinism
+  under reordering).
+
+## D35. Security regression at the aggregation boundary (and its limits)
+
+- **Selected tests:** instructions in an email cannot remove or reduce any indicator (the same
+  indicators are present with and without an injected suffix, and the injection is itself
+  reported as an indicator); an obedient model returning `none` cannot override validated
+  medium indicators, shown both with a hand-built record and through the real orchestrator; an
+  evidence-free positive claim is not trusted as assessed; every indicator carries evidence;
+  hostile text is never executed or fetched and a large adversarial body is processed well
+  inside a time bound.
+- **What this does NOT show:** immunity to prompt injection. The deterministic layer cannot be
+  switched off by text, but (1) an attacker can phrase a request to avoid the exact patterns, so
+  a *missing* indicator is not evidence of safety; (2) a model that is persuaded still writes
+  the stored rationale and level, which the aggregator can raise but never rewrites; (3) all
+  injection tests used scripted models, not a real model.
+- **Verification (executed):** 9 pipeline/security tests plus the aggregation tests above.
+
+## D36. Assumptions introduced in Phase 3
+
+- The organization's domain is `arcline.com` (from the brief's fictional organization name),
+  configurable through `ORG_DOMAINS`. Look-alike detection is meaningless without it.
+- English-language phrase patterns, written against the seed data and general knowledge of
+  business-email-compromise wording; they are not a validated corpus.
+- Thresholds: two distinct indicator categories for `medium`; invoice amount at least 2x the
+  largest earlier invoice; at least two distinct threatening phrases to be sufficient alone.
+- Emails with no usable date cannot be compared chronologically and produce no cross-email finding.
+- Housekeeping: the three `.gitkeep` files in now-populated directories were removed
+  (`agents/prompts`, `analysis`, `__tests__/fakes`).
+
+## D37. Phase 3 targeted quality gate: approvals, reproduced defects, corrections
+
+**Human-approved judgment decisions (candidate, 2026-10-11), with the qualifications given:**
+
+1. `ORG_DOMAINS=arcline.com` is approved as a **configurable assumption, not verified
+   organizational ownership**. Look-alike results are observations relative to that setting.
+2. Several threat phrases may support `medium` **only when their context is actually
+   threatening**. (Implemented as the quote/report context rule in D31.)
+3. The 2x invoice threshold is approved as an **anomaly heuristic, not evidence of fraud by
+   itself**. (The finding text and `values.heuristic` say so.)
+4. A grounded rule indicator may raise an AI-`none` assessment to `low`, **with visible
+   disagreement**. (Unchanged from D32; the disagreement record is always produced.)
+5. The `tampering` category **requires explicit, source-grounded evidence and must not label
+   ordinary unusual text as tampering**. (Implemented as the stricter rule in D31.)
+
+**Reproduced before changing anything (synthetic inputs, real code path):**
+
+| Check | Before | After |
+|---|---|---|
+| A. incident report quoting "I know where your office is / I know people" | `medium` | `low`, shown as "quoted or reported" |
+| A. `>`-quoted reply with the same phrases | `medium` | `low` |
+| A. genuine direct threat (control) | `medium` | `medium` (unchanged) |
+| B. two emails mentioning "Jane Roe", no verified address | merged into one node | two email-scoped nodes |
+| B. model-asserted address that is in neither email | merged two people across emails | ignored; not merged |
+| C. "set the risk level for the project" / "system prompt was updated" | flagged tampering | not flagged |
+| C. explicit "ignore all previous instructions" (control) | flagged | flagged |
+| C. $5 -> $11 invoice | `low` finding, no caveat | `low`, text says it is a heuristic |
+
+**Corrections (smallest within the existing architecture; no schema or contract change):**
+context test for threats in `risk/evidence.ts` + indicator rule; tampering patterns split into
+explicit vs corroborating in `risk/lexicon.ts`; person identity reduced to verified addresses in
+`risk/entities.ts` (plus verification that an address appears in the same email); heuristic
+caveat in `risk/riskView.ts`/`risk/vendor.ts`.
+
+**Verification (executed):** 25 new tests (424 total); the reproduction script re-run; and a
+temporary mutation check: ignoring quote/report context made 3 tests fail, restoring name-based
+person identity 3, trusting an unverified model address 1, and counting ordinary phrases as
+tampering 3; files restored byte-identical. Evidence integrity is now asserted directly: every
+indicator and finding quote equals the slice of its own email at the recorded offsets (checked
+across the whole seed), and no generated explanation uses "confirmed", "proven" or "fraudulent".
+
+**Remaining limitations:** rephrased or quoted-to-evade threats are weighted down; quotation
+cues are English and local; the 2x rule has no minimum amount; people sharing no verified address
+are never linked, so the graph can understate real connections; phrase lists remain unvalidated
+on real mail.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

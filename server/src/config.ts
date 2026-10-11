@@ -21,6 +21,12 @@ export const config = {
   // Contains the API key: never log, serialize, or return this object. Use describeSettings()
   // or the health payload for anything user-visible.
   llm,
+  // The organization's own domains: the reference for look-alike detection. Assumption: the
+  // brief names the fictional organization "Arcline" and its mailboxes use arcline.com.
+  orgDomains: (process.env.ORG_DOMAINS ?? "arcline.com")
+    .split(",")
+    .map((d) => d.trim().toLowerCase())
+    .filter((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)),
   analysis: {
     // When "true", the server queues unanalyzed emails (and retries retriable ones) at start-up.
     // Default off so a start-up never sends mailbox content to a provider unprompted.
