@@ -85,15 +85,18 @@ export function ConnectionStatus({ pillClass, dotClass, fullClass, shortClass, t
           <p className={s.heading}>Want to connect a live LLM?</p>
           <p className={s.body}>Follow the project setup guide to configure live AI analysis.</p>
           {guideUrl ? (
-            <a className={s.guideLink} href={guideUrl} target="_blank" rel="noreferrer">
-              View LLM Setup Guide
-            </a>
+            <>
+              <a className={s.guideLink} href={guideUrl} target="_blank" rel="noreferrer">
+                View LLM Setup Guide
+              </a>
+              <p className={s.note}>Opens the "Live LLM setup" section of the project README. It is also in README.md in the repository.</p>
+            </>
           ) : (
             <>
               <span className={s.guideOff} aria-disabled="true" data-testid="llm-guide-unavailable">
                 View LLM Setup Guide
               </span>
-              <p className={s.note}>Not linked yet: the setup guide will be part of the project README.</p>
+              <p className={s.note}>No link is configured. See the "Live LLM setup" section of README.md in the repository.</p>
             </>
           )}
         </div>

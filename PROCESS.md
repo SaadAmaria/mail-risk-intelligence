@@ -1485,6 +1485,82 @@ authenticity.
 - **Time:** total development time was not measured.
 
 
+### 2026-10-11 — Phase 8: documentation, developer experience and reviewer handoff (implemented, **uncommitted**)
+
+- **Authorization:** implementation only; no commit/push, no Groq call, no recordings, no fixture or
+  seed change, no new dependency, no graph redesign. Baseline `9a6dc20`, clean tree, remote private.
+- **Reviewer's overview of how AI tooling was used (a summary; the chronology above is the record):**
+  - *Claude Code (model `claude-sonnet-5-5`)* planned, implemented, tested and documented every
+    phase under written governance (`CLAUDE.md`): implementation only inside an authorized phase,
+    decision records for significant choices, no claims without an executed test, nothing committed
+    without explicit authorization.
+  - *The human candidate* set the phases and scope, approved or rejected decisions, authorized every
+    commit and push, chose the visual direction (supplying a reference image for the graph) and decided
+    what to defer. An independent AI reviewer's findings were relayed by the candidate and are recorded
+    where they changed the work.
+  - *Where the agent was corrected or corrected itself:* the early rules-only-as-zero-config design;
+    a health-handler defect; unverifiable highlights; a first-pass "same origin" security rule that
+    failed in a real browser; an inaccurate "44 px targets" claim; several tests that passed without
+    being able to fail (found by mutation checks). Each is in the dated entries above.
+  - *Recordings:* produced by a genuine run against Groq by the operator-controlled recorder, sealed
+    with integrity hashes; replay passes through the same validation. See D59-D68.
+  - *Security testing:* an audit found a cross-origin POST starting AI work; it was reproduced with a
+    fake provider, fixed (D92) and re-proved with a real browser attack page against a stack whose
+    provider was a loopback counter.
+- **Clean-room verification (executed):** a fresh clone of HEAD into a temporary directory, then
+  `npm ci` (about 10 s), `npm run build`, `npm run dev` with no `.env`. Observed: seed 10 created;
+  health `configured:false`, replay available for E001/E004/E007; recorded replay of E004 through the
+  dev proxy returned 202 and ended `complete` / `recorded` / medium; rules-only checks 200; a pasted
+  email and an `.eml` upload were stored (201); the graph returned entities and edges; the frontend
+  and `/graph` were served; the clean clone's own typecheck and test suites passed (31 + 22 files).
+  No provider was contacted.
+- **What did not go right (kept for the record):**
+  1. My first clean-room start ran Vite from the repository root instead of `web/` and served 404;
+     that was my test command, not the project. The documented command (`npm run dev`) was correct.
+  2. Port `3001` and `5173` were occupied on this machine (the operator's own dev server and a
+     leftover Vite of mine). The clean room therefore used `PORT=3411` and Vite port 5411 with
+     `CORS_ORIGIN` listing it; this is why the README says a non-default Vite port must be listed.
+     The default ports themselves could not be exercised in the clean room here.
+  3. The header's guide link was activated with a GitHub blob URL. The repository is private, so it
+     opens only for people with access; the URL's anchor cannot be fetched from GitHub until this
+     change is pushed. It is verified here against the README's own headings by a test, not against
+     the remote.
+- **Documentation produced:** `README.md` (with `#live-llm-setup`), `docs/REQUIREMENTS_TRACEABILITY.md`,
+  four real screenshots in `docs/screenshots/`, a corrected `.env.example` comment (no claim that a
+  local model is supported), and tests that keep the README's anchors, relative links and claims
+  honest (`web/src/lib/docs.test.ts`).
+- **Not done / limits:** no screen recording; total development time was not measured and none is
+  claimed; the README's statement about Groq's free tier points the reader to Groq's current terms
+  rather than quoting limits; local-model support is untested.
+- **Next:** independent review, then an explicit commit authorization.
+
+
+### 2026-10-11 — Phase 8 final acceptance gate
+
+- **Authorization:** review, correct and, if every gate passed, commit and push the Phase 8 changes
+  (message `docs: complete reviewer setup and requirements guide`). No Groq call, no tag, no release.
+- **Corrections made:** README test counts (server 31 files / 600, web 22 files / 231); the free-tier
+  or local LLM requirement restated (the brief allows either; Groq's free tier is what was implemented
+  and exercised; Ollama and local models are not implemented or tested); a "Time spent" section stating
+  that total focused time was not measured.
+- **Traceability count reconciled:** the table always had 24 rows. The discrepancy was in my previous
+  chat summary (I reported 18 Done), not in the file. Counted from the file: 19 Done, 4 Partial, 1 Not
+  done. Two rows were then re-classified on their merits: the PDF row (OCR is not required by the brief
+  and is not offered, so text-layer-only is a limitation of a Done requirement) and the LLM row (either
+  option suffices). Final: **21 Done, 2 Partial (narrow viewport; time statement), 1 Not done (optional
+  screen recording)**, now stated at the top of the document.
+- **Four ingestion paths, executed in an isolated environment (temporary database, no LLM variables,
+  port 3421):** pasted text, a `.txt` upload, an `.eml` upload and a text-layer `.pdf` (generated by
+  the test helper) were each stored (201, `source_kind` paste/txt/eml/pdf), reported
+  `not_started` and eligible for automatic checks, accepted automatic checks (200, `degraded` /
+  `rules`), survived a server restart with the same state, and appeared in the inbox and detail view
+  labelled "Automatic checks only / Not assessed". A blank (image-only) PDF was refused with 422
+  `ocr_unsupported`. No new message received an AI analysis; health stayed `configured:false`.
+- **Not verified:** the remote README anchor (the repository is private and the file is not yet
+  pushed) beyond the test that matches the link to the README's own heading.
+- **Time:** total development time was not measured.
+
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->

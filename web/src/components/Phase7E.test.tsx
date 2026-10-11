@@ -89,17 +89,28 @@ describe("header status wording", () => {
     expect(screen.queryByRole("region", { name: "About Recorded AI Replay" })).toBeNull();
   });
 
-  it("does not publish a link to a guide that does not exist yet", async () => {
-    expect(LLM_SETUP_GUIDE_URL).toBeNull();
+  it("links to the README section on GitHub and says where else to find it", async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByRole("button", { name: /Recorded AI Replay/ }));
     const panel = screen.getByRole("region", { name: "About Recorded AI Replay" });
+    const link = within(panel).getByRole("link", { name: "View LLM Setup Guide" });
+    expect(link.getAttribute("href")).toBe(LLM_SETUP_GUIDE_URL);
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(link.getAttribute("rel")).toContain("noreferrer");
+    expect(within(panel).getByText(/also in README.md in the repository/)).toBeTruthy();
+  });
+
+  it("falls back to plain text, naming the README section, when no target is configured", async () => {
+    const user = userEvent.setup();
+    render(
+      <ConnectionStatus pillClass="p" dotClass="d" fullClass="f" shortClass="s" text="Recorded AI Replay" short="Replay" replay guideUrl={null} />,
+    );
+    await user.click(screen.getByRole("button", { name: /Recorded AI Replay/ }));
+    const panel = screen.getByRole("region", { name: "About Recorded AI Replay" });
     expect(within(panel).queryByRole("link")).toBeNull();
-    const label = within(panel).getByTestId("llm-guide-unavailable");
-    expect(label.textContent).toBe("View LLM Setup Guide");
-    expect(label.getAttribute("aria-disabled")).toBe("true");
-    expect(within(panel).getByText(/Not linked yet/)).toBeTruthy();
+    expect(within(panel).getByTestId("llm-guide-unavailable").getAttribute("aria-disabled")).toBe("true");
+    expect(within(panel).getByText(/See the "Live LLM setup" section of README.md/)).toBeTruthy();
   });
 
   it("renders a real link as soon as a guide target is configured", async () => {

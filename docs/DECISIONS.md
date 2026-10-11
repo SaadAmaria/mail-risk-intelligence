@@ -1829,6 +1829,19 @@ engineering choices below are Claude's, pending review.
 - No authentication or authorization; the setup guide target (Phase 8); the sender/recipient role for
   entity risk marks (API extension, needs approval); the unused force layout module.
 
+## D97. Phase 8: documentation targets and the setup-guide link
+
+- **Selected:** one README with a stable "Live LLM setup" section (`#live-llm-setup`); the header's
+  existing guide label becomes a link to its GitHub blob URL; a unit test fails if the heading, the
+  anchor, any in-page link, any relative link or a forbidden claim drifts; a null URL still renders the
+  non-clickable fallback that names the README section.
+- **Alternatives:** serving the README from the app (new route and surface to secure); a relative link
+  (breaks outside the repository); a separate docs file (the brief wants setup in the README).
+- **Limits:** the repository is private, so the link works only for people with access; GitHub's own
+  rendering of the anchor is verifiable only after the commit is pushed.
+- **Not claimed:** Ollama or any local model works; the screenshots show the recorded-replay state, not
+  a live run.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a
