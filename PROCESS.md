@@ -73,6 +73,79 @@ technical reviewer, whose findings the candidate relayed.
   Git repository.
 - **Next:** wait for explicit authorization before committing or starting Phase 0.
 
+## 2026-10-11 — GitHub setup + Phase 0 scaffold
+
+- **Prompt (summary):** configure repo-local identity, commit the assignment files,
+  `.gitignore`, PROCESS.md and skeleton; create a private `mail-risk-intelligence`
+  repo and push; then implement Phase 0 only (workspaces, Vite/React/TS,
+  Express/TS, shared zod schemas, scripts, `.env.example`, `.nvmrc`); no Phase 0 commit.
+- **Git actions:** identity set locally; staged files scanned for credential patterns
+  (only hit was the seed's phishing email text); initial commit `35bce3e`; private
+  repo created and pushed; remote `main` matched local `HEAD`.
+- **Phase 0 work:** npm workspaces `shared`, `server`, `web`; shared zod schemas for
+  Agent A (`Extraction`, with `evidence_snippets`) and Agent B (`RiskAnalysis`), enums,
+  health/error API types; Express `GET /api/health`; Vite React placeholder that
+  fetches `/api/health` through the dev proxy and parses it with the shared schema.
+- **Error and correction:** the first attempt wrote the whole scaffold in one shell
+  heredoc script that failed to parse (unterminated quote). Nothing had been written
+  (verified with `git status`), so the files were re-created individually with the
+  file-write tool instead.
+- **Observed results:** `npm install` OK (188 packages, 0 vulnerabilities); typecheck
+  passes in all three workspaces; server and Vite dev server both boot; `/api/health`
+  returns the same payload directly and through the proxy; `vite build` succeeds.
+  The server prints a harmless "../.env not found" notice when no `.env` exists.
+- **Not done (by design):** no storage, ingestion, agents, UI beyond a placeholder,
+  and no tests (Phase 1+).
+
+## 2026-10-11 — Phase 0 final verification (independent request)
+
+- **Prompt (summary):** re-verify the actual repository without modifying files; report
+  PASS/FAIL per check and whether Phase 0 is commit-ready.
+- **Executed:** clean-copy `npm ci`, typecheck, `vite build`, root `npm run dev` boot with
+  health via direct and proxied calls; workspace/link inspection; `git diff` and ignore
+  checks; original-file diff against `HEAD`.
+- **Result:** no blocking issues; findings F1–F8 recorded. Notable: F1 `DB_PATH` resolved
+  relative to the wrong directory; F3 proxy port hardcoded; F4 server bound all interfaces.
+- **Decision:** COMMIT_READY YES, with F1 recommended first. Commit not authorized yet.
+
+## 2026-10-11 — Governance installed; Phase 0 findings closed
+
+- **Prompt (summary):** the candidate approved three Phase 0 deviations (`tsx` runtime,
+  shared package consumed from source, Node >=22.9.0 with Node 24 recommended) and
+  authorized: persist governance in `CLAUDE.md`, create `docs/DECISIONS.md`, fix F1/F3/F4,
+  validate, update PROCESS.md; no Phase 1, no commit, no push.
+- **Created:** `CLAUDE.md` (the governance instructions as supplied), `docs/DECISIONS.md`
+  (13 records plus grouped minor choices). Entries D1–D12 are explicitly marked
+  retrospective; alternatives that were not discussed at the time are marked as such.
+  Approvals are recorded only where they exist (Freeze V1.1 approval, the three explicit
+  approvals above). D7's concrete default provider/model is recorded as still undecided.
+- **Code/config changes (minimal):**
+  - `.env.example`: `DB_PATH=./data/mail-risk.db` (relative to `server/`); added `HOST=127.0.0.1`.
+  - `server/src/config.ts`, `server/src/index.ts`: bind `HOST` (default `127.0.0.1`).
+  - `web/vite.config.ts`: dev proxy target follows `PORT` (shell env or root `.env`,
+    default 3001) and uses `127.0.0.1`.
+- **Failed attempt and correction:** the first smoke-test script probed the Vite server at
+  `127.0.0.1:5173`, but on this machine Vite binds `localhost` (reported as `::1`), so the
+  probe failed (`ok=False`) although the app was fine. The same run also left dev processes
+  running because the process-tree kill missed `tsx watch` children, and the foreground
+  call hit the 180 s tool timeout and was moved to the background. I confirmed the leftover
+  PIDs were this repo's `vite`/`tsx` processes by command line, terminated them, then fixed
+  the script (probe Vite via `localhost`; clean up by process tree plus repo-path match) and
+  re-ran.
+- **Executed validation (all after the changes):**
+  - `npm run typecheck`: exit 0 in shared, server, web.
+  - `npm run build`: exit 0 (`vite build`).
+  - Default-port smoke: direct and proxied `/api/health` returned identical payloads;
+    API listening on `127.0.0.1` only; the machine's LAN address (`10.0.0.10`) was not reachable.
+  - Alternate-port smoke (`PORT=3105` in the environment): proxy followed; same results.
+  - Root-`.env` smoke (`PORT=3106` in a temporary `.env`, deleted afterwards and
+    confirmed gitignored): proxy followed; same results.
+  - All dev processes were stopped after each run; no listeners remained.
+- **Not executed:** Node versions below 24 (the 22.9 floor is untested); a second machine;
+  automated tests (none exist yet).
+- **Time:** not measured.
+- **Next:** wait for explicit authorization to commit/push and for Phase 1.
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->
