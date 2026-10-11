@@ -27,6 +27,8 @@ export function Dialog({
       opener.current = document.activeElement;
       if (typeof el.showModal === "function") el.showModal();
       else el.setAttribute("open", "");
+      // Prefer the first input over the close button, so typing can start at once.
+      el.querySelector<HTMLElement>("[data-autofocus]")?.focus();
     } else if (!open && el.open) {
       el.close();
       (opener.current as HTMLElement | null)?.focus?.();

@@ -4,11 +4,11 @@ import { ApiRequestError, api } from "../lib/api";
 import { announce } from "../lib/announce";
 import { buildClaims, type Claim, type SegmentRef } from "../lib/claims";
 import { CATEGORY_LABEL, RISK_LABEL, basisChip, basisLine, predicateLabel, statusCopy, tagLabel, errorMessage } from "../lib/copy";
-import { findingFacts } from "../lib/findings";
 import { formatAddresses, formatDateTime, pluralize, senderName } from "../lib/format";
 import { useResource, usePolling } from "../lib/hooks";
 import type { HighlightRange } from "../lib/highlight";
 import { buildUrl, DEFAULT_ROUTE } from "../lib/router";
+import { Comparison } from "./Comparison";
 import { Icon } from "./Icon";
 import { Link } from "./Link";
 import { RiskBadge } from "./RiskBadge";
@@ -178,6 +178,17 @@ function Loaded({
   const claimsFor = (prefix: string) => claims.filter((c) => c.id.startsWith(prefix));
   const aiClaims = claims.filter((c) => c.group === "ai");
   const checks = risk.indicators.filter((i) => i.identity === undefined);
+  // Several findings often cite the same passage; list each distinct passage once.
+  const crossClaims = useMemo(() => {
+    const seen = new Set<string>();
+    return claims.filter((c) => {
+      if (c.group !== "cross") return false;
+      const key = `${c.where}|${c.filename ?? ""}|${c.quote}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [claims]);
 
   return (
     <article className={s.pane} aria-labelledby="email-subject">
@@ -234,7 +245,7 @@ function Loaded({
         </header>
 
         {/* Verdict */}
-        <section className={s.card} aria-labelledby="verdict-h">
+        <section className={s.hero} aria-labelledby="verdict-h">
           <h2 id="verdict-h" className={s.cardTitle}>
             Risk assessment
           </h2>
@@ -338,42 +349,26 @@ function Loaded({
                   <h3 className={s.h3}>
                     <Chip kind="warn">Cross-email finding</Chip> Compared with other messages
                   </h3>
+                  <p className={s.muted}>
+                    A difference like these is a reason to verify with the vendor. It is not proof of fraud.
+                  </p>
                   <ul className={s.indicatorList}>
                     {risk.findings.map((f) => (
-                      <li key={f.id} className={s.indicator}>
-                        <p className={s.indicatorTitle}>{f.summary}</p>
-                        <p className={s.muted}>
-                          {f.identity === "consistent"
-                            ? "Same sender domain and the same vendor name in the documents."
-                            : "Tentative: the sender or vendor name did not fully match, so treat this as a lead."}
-                        </p>
-                        <dl className={s.facts}>
-                          {findingFacts(f).map((r) => (
-                            <div key={r.label}>
-                              <dt>{r.label}</dt>
-                              <dd>{r.value}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                        {f.related_email_ids.length > 0 && (
-                          <p className={s.related}>
-                            Compared with:{" "}
-                            {f.related_email_ids.map((rid, i) => (
-                              <span key={rid}>
-                                {i > 0 && ", "}
-                                <Link href={buildUrl({ ...DEFAULT_ROUTE, emailId: rid })}>{rid}</Link>
-                              </span>
-                            ))}
-                          </p>
-                        )}
-                        <ul className={s.evidenceList}>
-                          {claimsFor(`cross-${f.id}-`).map((c) => (
-                            <ClaimItem key={c.id} claim={c} active={activeClaim === c.id} onShow={show} />
-                          ))}
-                        </ul>
+                      <li key={f.id}>
+                        <Comparison finding={f} />
                       </li>
                     ))}
                   </ul>
+                  {crossClaims.length > 0 && (
+                    <>
+                      <p className={s.subLabel}>Where this appears in the message</p>
+                      <ul className={s.evidenceList}>
+                        {crossClaims.map((c) => (
+                          <ClaimItem key={c.id} claim={c} active={activeClaim === c.id} onShow={show} />
+                        ))}
+                      </ul>
+                    </>
+                  )}
                 </div>
               )}
             </>
@@ -545,7 +540,11 @@ function sameSegment(a: SegmentRef, b: SegmentRef): boolean {
   return a.kind === b.kind && (a.kind === "body" || (b.kind === "attachment" && a.index === b.index));
 }
 
+const CLAMP_AT = 240;
+
 function ClaimItem({ claim, active, onShow }: { claim: Claim; active: boolean; onShow: (c: Claim) => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const long = claim.quote.length > CLAMP_AT;
   const place =
     claim.where === "header"
       ? "From the message headers"
@@ -554,7 +553,12 @@ function ClaimItem({ claim, active, onShow }: { claim: Claim; active: boolean; o
         : "In the message body";
   return (
     <li className={`${s.claim} ${active ? s.claimActive : ""}`}>
-      <blockquote className={s.quote}>{claim.quote}</blockquote>
+      <blockquote className={`${s.quote} ${long && !expanded ? s.clamped : ""}`}>{claim.quote}</blockquote>
+      {long && (
+        <button type="button" className={s.moreButton} aria-expanded={expanded} onClick={() => setExpanded((v) => !v)}>
+          {expanded ? "Show less" : "Show full quote"}
+        </button>
+      )}
       <div className={s.claimMeta}>
         <span className={s.muted}>{place}</span>
         {claim.target ? (
@@ -653,7 +657,7 @@ function AnalysisCard({
   };
 
   return (
-    <section className={s.card} aria-labelledby="analysis-h">
+    <section className={s.panel} aria-labelledby="analysis-h">
       <h2 id="analysis-h" className={s.cardTitle}>
         Analysis
       </h2>

@@ -709,6 +709,49 @@ authenticity.
   of this gate.
 - **Next:** independent approval; nothing committed or pushed.
 
+## 2026-10-11 — Phase 5.1: premium UX/UI refinement (uncommitted)
+
+- **Prompt (summary):** refine, not rebuild: larger readable type, a wider inbox (~400–460 px),
+  a purposeful no-selection state from real data, clearer hierarchy with fewer boxed cards, a
+  stronger header/wordmark, a more scannable evidence presentation and a compelling but factual
+  cross-email comparison; verify at 1440, 1280, 768 and 375; no backend/shared/risk/prompt
+  changes; no new runtime dependency; no commit.
+- **Implemented (Claude):** type scale raised one step (body 14 -> 16 px, subject 26 -> 28 px);
+  inbox width clamp(400px, 32vw, 460px) with two-line subjects and shorter filter labels (full
+  accessible names kept); navy header with wordmark and tagline; a `Welcome` state (real
+  messages ordered by review priority, "how to read a result" legend); a `Comparison` component
+  ("earlier -> this message"); investigation page restructured into one elevated verdict, a tinted
+  analysis band and plain ruled sections; quotes clamped to 3 lines with "Show full quote";
+  cross-email source passages de-duplicated across findings; metadata as a label-over-value grid;
+  dialog focuses its text field.
+- **Failures and corrections (not hidden):**
+  1. **A real P1 found only by looking at the screenshots:** at 375 px the inbox was clipped on the
+     right ("Add email", dates and "Newest first" cut off). Cause: a grid track sized to the
+     unshrinkable nowrap sender text. My overflow metric (`documentElement.scrollWidth`) had
+     reported "no overflow" in the previous phase and in the first run of this one because `html`
+     is `overflow: hidden`, so the earlier "no horizontal overflow at 375 px" claims for the inbox
+     were **not reliable**. Fixed with `minmax(0, 1fr)` tracks and replaced the metric with
+     per-container `scrollWidth > clientWidth` checks plus visual inspection.
+  2. A heavy focus box around the message heading (programmatic focus) looked like a button;
+     removed for that non-interactive heading only.
+  3. The "not proof of fraud" sentence was repeated on every comparison card; stated once for the
+     group.
+  4. One shell batch failed to parse (quoting) and ran nothing; re-done with script files.
+  5. One test (welcome duplicates the subject text) needed updating, not the code.
+- **Executed validation:** typecheck 0 errors; server 27 files / 514 tests; web **10 files / 68
+  tests** (+7: Welcome ordering/cap/empty/never-safe, comparison values, plus the earlier ones);
+  build exit 0 (JS 260 kB / 79 kB gz, CSS 27.5 kB / 6 kB gz). Real browser (headless Edge, real
+  Express API on a temporary database, local stub model): 1440x900, 1280x800, 768x1024, 375x812
+  inbox/detail/cross-email/dialog; per-container overflow probe empty at every width; read-only
+  browsing 0 model calls; file upload and paste stored with 0 calls; one explicit analysis exactly
+  2 calls; degraded provider keeps "Not assessed" and the forced re-run still needs confirmation
+  (run count stayed 3); keyboard tab order, list arrows, dialog focus in/out all as before; no
+  console errors.
+- **Not verified / limitations:** one engine only (Chromium/Edge); no screen reader; filter chips
+  wrap to two rows at 400-460 px (five labelled filters do not fit one row at 16 px); the
+  `From` address can wrap at a hyphen in the three-column metadata grid.
+- **Next:** independent review; nothing committed or pushed.
+
 
 ---
 

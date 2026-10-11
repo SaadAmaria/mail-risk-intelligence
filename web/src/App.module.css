@@ -13,24 +13,32 @@
   justify-content: space-between;
   gap: var(--space-3);
   height: var(--header-h);
-  padding: 0 var(--space-4);
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  padding: 0 var(--space-5);
+  background: var(--header-bg);
+  color: var(--header-ink);
+  border-bottom: 1px solid #000;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   min-width: 0;
 }
 .logo {
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-md);
-  background: var(--ink);
-  color: var(--ink-inverse);
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border-radius: 10px;
+  background: linear-gradient(145deg, #5b50e6, #3730a3);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.wordmark {
+  display: grid;
+  line-height: 1.15;
+  min-width: 0;
 }
 .title {
   overflow: hidden;
@@ -38,39 +46,54 @@
   white-space: nowrap;
   font-weight: 700;
   font-size: var(--text-lg);
+  letter-spacing: -0.01em;
+}
+.title span {
+  font-weight: 500;
+  color: var(--header-ink-2);
+}
+.tagline {
+  color: var(--header-ink-2);
+  font-size: var(--text-xs);
+  white-space: nowrap;
 }
 .conn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-width: 0;
-  padding: 2px 10px;
-  border: 1px solid var(--border);
+  padding: 4px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--ink-2);
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--header-ink);
   font-size: var(--text-xs);
   font-weight: 600;
   white-space: nowrap;
-}
-.connShort {
-  display: none;
 }
 .connDot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--ink-3);
+  background: #8b93a7;
 }
 .ok .connDot {
-  background: var(--risk-none-fg);
+  background: #4ade9b;
 }
 .warn .connDot {
-  background: var(--risk-medium-fg);
+  background: #fbbf4a;
+}
+.connShort {
+  display: none;
+}
+@media (max-width: 899px) {
+  .tagline {
+    display: none;
+  }
 }
 @media (max-width: 599px) {
-  .title {
-    font-size: var(--text-md);
+  .header {
+    padding: 0 var(--space-4);
   }
   .connFull {
     display: none;
@@ -87,7 +110,8 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr;
+  /* minmax(0, ...) lets the single column shrink below its content's min-width on phones. */
+  grid-template-columns: minmax(0, 1fr);
   outline: none;
 }
 .wide {
@@ -103,10 +127,4 @@
   min-height: 0;
   min-width: 0;
   background: var(--bg);
-}
-.placeholder {
-  height: 100%;
-  display: grid;
-  place-items: center;
-  padding: var(--space-5);
 }

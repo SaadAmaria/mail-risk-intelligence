@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent } from "react";
 import type { EmailListItem, FinalRiskLevel } from "@mri/shared";
-import { RISK_LABEL, RISK_ORDER, basisChip, statusCopy } from "../lib/copy";
+import { RISK_LABEL, RISK_ORDER, RISK_SHORT, basisChip, statusCopy } from "../lib/copy";
 import { formatDay, pluralize, senderName } from "../lib/format";
 import { isInProgress, riskCounts, type Mailbox } from "../lib/mailbox";
 import { buildUrl, type RouteState } from "../lib/router";
@@ -51,7 +51,7 @@ export function InboxPane({ route, query, onQuery, onRoute, mailbox, aiConfigure
             <input
               type="search"
               value={query}
-              placeholder="Search sender, subject or text"
+              placeholder="Search messages"
               onChange={(e) => onQuery(e.target.value)}
               autoComplete="off"
             />
@@ -71,6 +71,7 @@ export function InboxPane({ route, query, onQuery, onRoute, mailbox, aiConfigure
                 key={level}
                 type="button"
                 aria-pressed={on}
+                aria-label={`${RISK_LABEL[level]}${n !== undefined ? `, ${counts && !counts.complete ? "at least " : ""}${n}` : ""}`}
                 className={s.filter}
                 onClick={() => toggleRisk(level)}
                 title={
@@ -79,7 +80,7 @@ export function InboxPane({ route, query, onQuery, onRoute, mailbox, aiConfigure
                     : undefined
                 }
               >
-                <span>{RISK_LABEL[level]}</span>
+                <span>{RISK_SHORT[level]}</span>
                 {n !== undefined && (
                   <span className={s.count}>
                     {counts && !counts.complete ? "≥" : ""}

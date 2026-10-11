@@ -1217,6 +1217,59 @@ action, D40); (c) UTC date display; (d) every poll refetches the list and a 500-
 - **Approval:** correction made at the reviewer's direction in the gate; awaiting final approval.
   This amends D50 ("Run again anyway sends force=true"): it now requires confirmation.
 
+## D55. Phase 5.1: refine hierarchy by spacing and one elevated surface, not by more boxes
+
+- **Context:** Phase 5 screenshots at 100% zoom looked like an internal tool: small type, a narrow
+  inbox, near-identical white bordered cards for every section, and an empty right pane.
+- **Selected:** body text 16 px (scale 13/14/16/18/22/28), inbox 400-460 px, a dark navy header
+  with a plain wordmark, one elevated card (the verdict), one tinted band (analysis), and plain
+  ruled sections for evidence, message, entities and processing. Metadata is label-over-value.
+  Quotes are clamped to three lines with an explicit "Show full quote".
+- **Alternatives:** keeping cards and only enlarging type (rejected: hierarchy stays flat);
+  tabs for evidence/message (rejected again: the quote and its highlighted source are meant to be
+  adjacent; open to review); a dashboard of KPIs/charts (rejected: would need invented data).
+- **Trade-offs:** a larger scale gives fewer inbox rows per screen; the filter chips wrap to two
+  rows; the search placeholder is shorter ("Search messages").
+- **Verification (executed):** screenshots at 1440/1280/768/375; 68 web tests; computed contrast:
+  header text 15.3:1, secondary header text 8.5:1, amber-label text 6.2:1.
+- **Approval:** within the authorized Phase 5.1 scope; awaiting review.
+
+## D56. No-selection state built only from real mailbox data
+
+- **Selected:** `Welcome` lists up to five existing messages ordered high, medium, low,
+  not assessed, then no-risk (needs-review first, newest first), each a normal link that opens the
+  message only when clicked. It repeats the real provenance chip and risk badge, states how many
+  are flagged / not assessed (and that the sample is the newest N when capped), and explains AI-
+  assessed vs automatic checks vs not assessed. It never opens, analyzes or scores anything.
+- **Alternatives:** an auto-opened first message (rejected: acts without intent); a stats
+  dashboard (rejected: scope and fake-KPI risk).
+- **Verification (executed):** unit tests for ordering, the five-item cap, the empty mailbox, the
+  capped caption, no `none` badge and unchanged URL; real browser: 0 model calls.
+
+## D57. Cross-email comparison as "earlier -> this message", only from API values
+
+- **Selected:** `findingComparison` maps the finding's own `values` (prior accounts or amounts,
+  new account or amount, routing flag, bank-change flag, ratio, heuristic flag) to two panels and
+  short notes; nothing is hard-coded or derived, notes are omitted when the server did not send
+  the value, the identity statement (consistent/tentative) is kept, and one line states that such
+  a difference is a reason to verify and not proof of fraud. Currency symbols are not added
+  because the values carry none.
+- **Alternatives:** a table of fact rows (previous design; rejected: harder to scan); parsing the
+  summary text (rejected: brittle).
+- **Verification (executed):** three unit tests including "does not invent notes"; real browser
+  with the seeded E004/E009 data.
+
+## D58. Layout correctness is verified by rendering, and the earlier overflow claim is corrected
+
+- **Context:** `documentElement.scrollWidth > clientWidth` cannot detect clipping when `html` is
+  `overflow: hidden` (D52). It reported "no overflow" while the 375 px inbox was clipped.
+- **Selected:** grid tracks that may shrink (`minmax(0, 1fr)`) on the main grid, the inbox row
+  and toolbar and the investigation scroller; the check now inspects the pane containers and rows
+  and the result is confirmed visually.
+- **Correction of record:** the Phase 5 statements "no horizontal overflow at 375 px" for the
+  inbox were not reliable; the defect existed in the committed Phase 5 (commit 0988ea4).
+- **Verification (executed):** container probe empty at 1440/1280/768/375; screenshots reviewed.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

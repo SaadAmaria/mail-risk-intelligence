@@ -1,34 +1,62 @@
 import type { CrossEmailFinding } from "@mri/shared";
 
-export interface FactRow {
-  label: string;
-  value: string;
+export interface Comparison {
+  kind: "account" | "amount";
+  beforeLabel: string;
+  before: string[];
+  afterLabel: string;
+  after: string;
+  /** Short qualitative notes, each a labelled yes/no or value taken from the finding. */
+  notes: { label: string; value: string; tone: "neutral" | "same" | "changed" }[];
+  /** Extra caption for a heuristic check, e.g. "3.4× the largest earlier invoice". */
+  caption: string | null;
 }
 
-const yesNo = (v: unknown): string => (v === true ? "Yes" : v === false ? "No" : "Unknown");
-const list = (v: unknown): string =>
-  Array.isArray(v) && v.length ? v.map((x) => (typeof x === "number" ? x.toLocaleString("en-US") : String(x))).join(", ") : "None";
-const num = (v: unknown): string => (typeof v === "number" ? v.toLocaleString("en-US") : "Unknown");
+const fmt = (v: unknown): string =>
+  typeof v === "number" ? v.toLocaleString("en-US") : v === null || v === undefined ? "Unknown" : String(v);
+
+const list = (v: unknown): string[] => (Array.isArray(v) ? v.map(fmt) : []);
 
 /**
- * The values a cross-email finding is based on, as labelled rows. Only values the server
- * computed are shown; nothing is derived here.
+ * The values a cross-email finding rests on, arranged as "earlier → this message". Only values
+ * the server computed are used; nothing is derived or assumed here.
  */
-export function findingFacts(f: CrossEmailFinding): FactRow[] {
+export function findingComparison(f: CrossEmailFinding): Comparison {
   const v = f.values;
   if (f.rule_id === "payment_account_changed") {
-    return [
-      { label: "Account on earlier invoices", value: list(v.prior_accounts) },
-      { label: "Account in this message", value: String(v.new_account ?? "Unknown") },
-      { label: "Routing number unchanged", value: yesNo(v.routing_unchanged) },
-      { label: "Message says bank details changed", value: yesNo(v.claims_bank_change) },
-    ];
+    const notes: Comparison["notes"] = [];
+    if (typeof v.routing_unchanged === "boolean") {
+      notes.push({
+        label: "Routing number",
+        value: v.routing_unchanged ? "Unchanged" : "Changed",
+        tone: v.routing_unchanged ? "same" : "changed",
+      });
+    }
+    if (typeof v.claims_bank_change === "boolean") {
+      notes.push({
+        label: "Message says bank details changed",
+        value: v.claims_bank_change ? "Yes" : "No",
+        tone: "neutral",
+      });
+    }
+    return {
+      kind: "account",
+      beforeLabel: "Account on earlier invoices",
+      before: list(v.prior_accounts),
+      afterLabel: "Account in this message",
+      after: fmt(v.new_account),
+      notes,
+      caption: null,
+    };
   }
-  const rows: FactRow[] = [
-    { label: "Amount in this message", value: num(v.new_amount) },
-    { label: "Amounts on earlier invoices", value: list(v.prior_amounts) },
-    { label: "Compared with earlier", value: typeof v.ratio === "number" ? `${v.ratio}×` : "Unknown" },
-  ];
-  if (v.heuristic === true) rows.push({ label: "Kind of check", value: "Heuristic, not proof" });
-  return rows;
+  const ratio = typeof v.ratio === "number" ? `${v.ratio}× the largest earlier invoice` : null;
+  return {
+    kind: "amount",
+    beforeLabel: "Amounts on earlier invoices",
+    before: list(v.prior_amounts),
+    afterLabel: "Amount in this message",
+    after: fmt(v.new_amount),
+    notes: [],
+    caption: v.heuristic === true && ratio ? `${ratio} · heuristic` : ratio,
+  };
 }

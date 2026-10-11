@@ -66,6 +66,7 @@ export function AddEmail({
           </label>
           <textarea
             id="paste-text"
+            data-autofocus
             value={text}
             onChange={(e) => setText(e.target.value)}
             rows={10}

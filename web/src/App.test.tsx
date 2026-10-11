@@ -91,7 +91,7 @@ const posts = () => world.calls.filter((c) => c.method !== "GET");
 describe("inbox", () => {
   it("lists messages with explicit risk wording and starts no analysis by itself", async () => {
     render(<App />);
-    expect(await screen.findByText("Subject E1")).toBeTruthy();
+    expect((await screen.findAllByText("Subject E1")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Not assessed").length).toBeGreaterThan(0);
     expect(document.querySelector("[data-level=\"none\"]")).toBeNull();
     expect(posts()).toHaveLength(0);

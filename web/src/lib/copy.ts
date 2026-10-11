@@ -19,6 +19,14 @@ export const RISK_LABEL: Record<FinalRiskLevel, string> = {
   unassessed: "Not assessed",
 };
 
+export const RISK_SHORT: Record<FinalRiskLevel, string> = {
+  high: "High",
+  medium: "Medium",
+  low: "Low",
+  none: "No risk found",
+  unassessed: "Not assessed",
+};
+
 export const RISK_ORDER: FinalRiskLevel[] = ["high", "medium", "low", "none", "unassessed"];
 
 /** What the level is based on. */

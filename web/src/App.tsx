@@ -11,7 +11,8 @@ import { Dialog } from "./components/Dialog";
 import { Icon } from "./components/Icon";
 import { InboxPane } from "./components/InboxPane";
 import { InvestigationPane } from "./components/InvestigationPane";
-import { Callout, EmptyState } from "./components/ui";
+import { Callout } from "./components/ui";
+import { Welcome } from "./components/Welcome";
 import s from "./App.module.css";
 
 export function App() {
@@ -67,7 +68,12 @@ export function App() {
           <span className={s.logo}>
             <Icon name="logo" size={20} />
           </span>
-          <span className={s.title}>Mail Risk Intelligence</span>
+          <span className={s.wordmark}>
+            <span className={s.title}>
+              Mail Risk <span>Intelligence</span>
+            </span>
+            <span className={s.tagline}>Evidence-first email investigation</span>
+          </span>
         </div>
         <span className={[s.conn, conn.tone === "ok" ? s.ok : conn.tone === "warn" ? s.warn : ""].join(" ")} title={health.data?.llm.model ?? undefined}>
           <span className={s.connDot} aria-hidden="true" />
@@ -112,12 +118,12 @@ export function App() {
                 }}
               />
             ) : (
-              <div className={s.placeholder}>
-                <EmptyState icon="shield" title="Select a message to investigate">
-                  Each message shows its risk, the exact passages behind it, and how it compares with the rest of the
-                  mailbox.
-                </EmptyState>
-              </div>
+              <Welcome
+                overview={mailbox.overview.data}
+                loading={mailbox.overview.loading}
+                aiConfigured={aiConfigured}
+                onAdd={() => go({ add: true })}
+              />
             )}
           </div>
         )}
