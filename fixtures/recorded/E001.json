@@ -1,0 +1,72 @@
+{
+  "format_version": 1,
+  "email": {
+    "id": "E001",
+    "content_hash": "21ce6cf12ccaabffa9f759dc6d20f24ce84a0d6b358410355d86e9b5b6d4aa8d"
+  },
+  "pipeline": {
+    "prompt_version": "extract-v1+risk-v1",
+    "extraction_schema_version": 1,
+    "risk_schema_version": 1
+  },
+  "capture": {
+    "captured_at": "2026-10-11T15:26:05.214Z",
+    "tool": "record-fixtures/2",
+    "provider_host": "api.groq.com",
+    "requested_model": "openai/gpt-oss-120b",
+    "attempt": 1,
+    "attempts_made": 1
+  },
+  "calls": [
+    {
+      "stage": "extraction",
+      "request_hash": "a03484691b729ca8a8c82df2d21bbdd07782a30a0f0f53182f89d1b293aff41a",
+      "content": "{\"summary\":\"The email from a CEO asks finance to wire $184,500 to a new escrow partner today before noon, requesting confidentiality and stating he will send account details later.\",\"facts\":{\"amounts\":[{\"value\":184500,\"currency\":\"USD\",\"context\":\"wire amount\"}],\"dates\":[{\"value\":\"2026-06-02T08:14:00Z\",\"context\":\"email date\"}],\"references\":[],\"attachments\":[]},\"evidence_snippets\":[{\"text\":\"Subject: URGENT - confidential wire needed before noon\",\"where\":\"header\"},{\"text\":\"Hi, I'm in back-to-back board meetings and can't talk. We're closing a time-sensitive acquisition and I need Finance to wire $184,500 to our new escrow partner today before 12pm.\",\"where\":\"body\"},{\"text\":\"please treat this as confidential and don't loop in anyone else until it's done. This cannot wait. - James\",\"where\":\"body\"}],\"notes\":[]}",
+      "finish_reason": "stop",
+      "response_model": "openai/gpt-oss-120b",
+      "usage": {
+        "prompt_tokens": 734,
+        "completion_tokens": 240,
+        "total_tokens": 974,
+        "reasoning_tokens": 40
+      },
+      "latency_ms": 951
+    },
+    {
+      "stage": "risk",
+      "request_hash": "fc7044e03d7f88c7b6778353bc3cc39fdc20748fa435c2432637ca804a0cd962",
+      "content": "{\"risk\":{\"level\":\"high\",\"rationale\":\"The email claims to be from a CEO requesting an urgent wire of $184,500 to a new escrow partner, promising to send account details later, which matches common business email compromise patterns and suggests possible impersonation and fraud.\",\"tags\":[\"urgency\",\"payment-redirect\",\"impersonation\",\"phishing\"],\"evidence\":[{\"snippet_id\":\"s1\",\"quote\":\"'m in back-to-back board meetings and can't talk. We're closing a time-sensitive acquisition and I need Finance to wire $184,500 to our new escrow partner today before 12pm. I'll send the account details from my personal phone in a follow-up - pleas\"}],\"confidence\":\"high\"},\"entities\":[{\"ref\":\"e1\",\"type\":\"person\",\"name\":\"James\",\"attributes\":{}},{\"ref\":\"e2\",\"type\":\"organization\",\"name\":\"Arcline\",\"attributes\":{}},{\"ref\":\"e3\",\"type\":\"amount\",\"name\":\"$184,500\",\"attributes\":{\"currency\":\"USD\",\"value\":184500}}],\"relationships\":[{\"from_ref\":\"e1\",\"predicate\":\"sent_email_to\",\"to_ref\":\"e2\",\"snippet_id\":\"s1\",\"quote\":\"'m in back-to-back board meetings and can't talk. We're closing a time-sensitive acquisition and I need Finance to wire $184,500 to our new escrow partner today before 12pm. I'll send the account details from my personal phone in a follow-up - pleas\"},{\"from_ref\":\"e1\",\"predicate\":\"requests_transfer_to\",\"to_ref\":\"e3\",\"snippet_id\":\"s1\",\"quote\":\"'m in back-to-back board meetings and can't talk. We're closing a time-sensitive acquisition and I need Finance to wire $184,500 to our new escrow partner today before 12pm. I'll send the account details from my personal phone in a follow-up - pleas\"}]}",
+      "finish_reason": "stop",
+      "response_model": "openai/gpt-oss-120b",
+      "usage": {
+        "prompt_tokens": 1197,
+        "completion_tokens": 535,
+        "total_tokens": 1732,
+        "reasoning_tokens": 152
+      },
+      "latency_ms": 1488
+    }
+  ],
+  "result": {
+    "status": "complete",
+    "stages": [
+      {
+        "stage": "extraction",
+        "outcome": "ok",
+        "calls": 1,
+        "dropped_items": 0,
+        "error_kind": null
+      },
+      {
+        "stage": "risk",
+        "outcome": "ok",
+        "calls": 1,
+        "dropped_items": 0,
+        "error_kind": null
+      }
+    ],
+    "warnings_count": 0,
+    "digest": "1678f033cec84f19dbb30c5a4f2d22446d2fc7fa7e8bdee21eff689a1f8e1f78"
+  },
+  "integrity": "f00c160169842125e495b4a4ffa7ad31e099850ea22038a1b1ca0fb8612ab53b"
+}

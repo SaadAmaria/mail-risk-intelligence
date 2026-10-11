@@ -1406,6 +1406,32 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
 - **Approval:** the human operator authorized the recording and approved documenting and committing
   the accepted fixture.
 
+## D67. Accepted: second genuine recording (E001), E004 preserved
+
+- **Context:** after E004 was accepted, the operator authorized one separate live recording for
+  E001 under the existing recorder (incremental manifest, duplicate refusal, replay gate).
+- **Selected:** commit `fixtures/recorded/E001.json` and the updated `index.json` exactly as
+  captured. The recording was done as a single-email run (not a batch), per the preflight
+  recommendation, to keep per-email control and a low burst rate.
+- **Alternatives considered:** a four-email batch (rejected in the preflight: higher burst against
+  an unverified free-tier budget, and nothing published until all four finish); editing or choosing
+  among several captures (rejected: not genuine); fixing the snippet clipping first (rejected for
+  now: it would stale existing fixtures and was outside the authorization).
+- **Evidence (executed, see PROCESS.md):** 2 real completions, no repairs or retries, status
+  `complete`, AI high / rules medium / final high; digest reproduced by the recorder and again
+  independently; E004 byte-identical before and after; 15/15 browser checks.
+- **Limitations and risks:**
+  - The cited evidence is a mid-word-clipped rule snippet (see PROCESS.md); it is verified but
+    reads as truncated.
+  - A single capture says nothing about run-to-run variance.
+  - Fixtures are bound to the current prompts, parser and seed text (`extract-v1+risk-v1`); any
+    change makes all recordings stale and requires re-recording with new authorization.
+  - Integrity is consistency, not authorship.
+  - Provider free-tier limits were not verified; this run used far less than the suggested budget.
+  - The recorder still has no concurrency lock; runs must be serial.
+- **Approval:** the human operator authorized the recording and approved documenting and committing
+  the accepted fixture.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

@@ -2,6 +2,11 @@
   "format_version": 1,
   "files": [
     {
+      "email_id": "E001",
+      "file": "E001.json",
+      "integrity": "f00c160169842125e495b4a4ffa7ad31e099850ea22038a1b1ca0fb8612ab53b"
+    },
+    {
       "email_id": "E004",
       "file": "E004.json",
       "integrity": "393aee2b3727134163ab530e29ce74cc805fccfc0e7307fa933e96ecb54acc03"

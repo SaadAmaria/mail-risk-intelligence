@@ -935,6 +935,67 @@ authenticity.
 - **Time:** total development time was not measured.
 - **Next:** nothing further was run; no additional recording is authorized.
 
+## 2026-10-11 — E004 fixture commit and the E001 recording (factual note)
+
+- **E004 fixture commit:** `5681bf5e586ee2558dacd1f9f73cb1a375ddb2cb`
+  (`feat(fixtures): add verified Groq recording for E004`) was pushed to `origin/main`. It is the
+  baseline of this entry. (The statement above that "only E004 is recorded" described that commit;
+  this entry supersedes it.)
+- **Authorization:** the operator authorized ONE live recording CLI invocation for seed email E001
+  only (`api.groq.com`, `openai/gpt-oss-120b`), including the existing bounded repair and
+  transport-retry behaviour; no second invocation, no `--overwrite`.
+- **Pre-flight and dry run (all passed before transmission):** branch `main`; `HEAD` ==
+  `origin/main`; clean tree; seed file byte-identical to `HEAD`; E004 fixture valid and unchanged;
+  manifest listed exactly E004; E001 had no recording; prompt/schema versions matched; host and model
+  matched; key present (never printed); no other recorder instance; a private E004 hash snapshot
+  was saved; the dry run selected E001 only and reported E004 as an existing valid recording.
+- **Execution:** the single command `npm run record -w server -- --ids E001 --send
+  --authorize-seed-transmission=1` was run exactly once (15:26:02Z to 15:26:05Z, exit 0). It was
+  not repeated.
+- **Provider accounting (from the fixture and run log):** 2 completions (1 Agent A, 1 Agent B), both
+  `finish_reason: stop`; **0 repair calls, 0 transport retries** (each stage logged one HTTP
+  attempt); no rate-limit, timeout or truncation warnings. Tokens: extraction 734 prompt + 240
+  completion (40 reasoning), risk 1,197 + 535 (152 reasoning), 2,706 in total. Latency 951 ms and
+  1,488 ms.
+- **Result:** analysis `complete`. Agent A validated (0 dropped, 0 warnings, no repair; 5 snippets).
+  Agent B validated (0 dropped): level **high**, confidence high, tags urgency, payment-redirect,
+  impersonation, phishing; one cited quote from snippet `s1`; 3 entities and 2 relationships, all
+  grounded. Deterministic rules level: **medium** (6 indicators). Final aggregated view: **high**,
+  basis `ai_and_rules`, no escalation, no disagreement reported, `needs_review` false. The AI
+  rationale and the rule indicators describe suspicion, not proven fraud.
+- **No manual rewriting:** the stored completions are the provider's raw output as captured; no
+  response was edited, repaired or selected from several attempts (attempt 1 of 1).
+- **Fixture:** `fixtures/recorded/E001.json` (integrity `f00c1601…`) and the updated
+  `index.json` (E001, then E004, sorted). The recorder's gate passed: replay in an isolated
+  database reproduced the capture digest (`1678f033…`) and the secret/path scan was clean.
+- **E004 preserved byte-for-byte:** file sha256 (`0047cebb…`), size, integrity, manifest entry,
+  content hash, result digest and capture time are identical to the pre-run snapshot and to the
+  committed file.
+- **Independent verification (read-only):** integrity, manifest, seed content hash and prompt/schema
+  versions recomputed and matching for both recordings; two further replays of each through the real
+  pipeline equal each other and the stored digests; scans for the configured key value, key
+  patterns, prompt text, authorization text and local paths found nothing. A real-browser check
+  (headless Edge, real Express backend, new SQLite database, no LLM variables, `.env` not loaded)
+  passed **15 of 15** checks: rules-only before replay, one explicit POST, complete / recorded /
+  high, UI equal to the API, evidence highlight equal to the verified source text, E004 replayable
+  with its previous result, only E001 and E004 labelled "AI-assessed — Recorded", the other eight
+  unrecorded (E006, E007, E009, E010 without any assessment), and no live provider activity
+  observed (health unchanged, `reachability: unchecked`).
+- **Known limitation (evidence-snippet clipping):** the AI cited the rule-built snippet `s1`, which
+  begins mid-word ("'m in back-to-back…") and ends mid-word ("…follow-up - pleas"), because the
+  deterministic snippet builder clips long lines to a character window. The quote is verified and
+  grounded but reads as truncated, and the model's cleaner proposed snippets (`s3`, `s4`) were not
+  the ones it cited. This is a product-quality issue in the existing snippet builder, not a defect of
+  the recording. Fixing it would change the deterministic snippets and therefore make this
+  fixture (and E004's, if affected) stale until re-recorded, so it was deliberately not changed.
+- **Other known issues (unchanged):** the E009 replay-mode wording and the missing favicon.
+- **What the integrity check shows:** consistency with the current message and pipeline; it does
+  not prove that Groq produced the output.
+- **Scope of recorded data:** E001 and E004 only. All other seed emails, and any pasted or uploaded
+  message, have no recording and are never labelled AI-assessed.
+- **Time:** total development time was not measured.
+- **Next:** nothing further was run; no additional recording is authorized.
+
 
 ---
 
