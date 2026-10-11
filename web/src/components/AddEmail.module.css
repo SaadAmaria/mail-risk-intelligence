@@ -1,0 +1,76 @@
+.form {
+  display: grid;
+  gap: var(--space-4);
+}
+.modes {
+  display: flex;
+  gap: var(--space-2);
+}
+.mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  font-weight: 600;
+}
+.mode[aria-pressed="true"] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--ink-inverse);
+}
+@media (max-width: 899px) {
+  .mode {
+    min-height: var(--tap);
+  }
+}
+.field {
+  display: grid;
+  gap: 6px;
+}
+.label {
+  font-weight: 700;
+}
+.field textarea {
+  width: 100%;
+  min-height: 200px;
+  padding: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  resize: vertical;
+}
+.fileRow input {
+  max-width: 100%;
+}
+.hint {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
+.check {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+.check input {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}

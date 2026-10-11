@@ -588,6 +588,128 @@ authenticity.
   5 MB; polling only; the live check was one synthetic email, not a quality evaluation.
 - **Time:** not measured. **Next:** independent review; nothing committed or pushed.
 
+## 2026-10-11 — Phase 4 commit (factual note)
+
+- **Phase 4 commit:** `5eec0505ab7c20e44b53e242ebebda11964ddd4f`
+  (`feat(api): expose mailbox, analysis and knowledge graph endpoints`) was pushed to `origin/main`
+  on authorization (D38–D45 accepted). It is the baseline Phase 5 builds on.
+
+## 2026-10-11 — Phase 5: frontend (investigation workspace)
+
+- **Prompt (summary):** implement Phase 5 only: a responsive two-pane master–detail workspace
+  (mobile list → drill-down), "Premium Modern Enterprise Intelligence" light theme, Premium Tier 1
+  scope, evidence-first investigation as the differentiator. Required refinements: capped-list
+  risk counts are not global totals; validate every highlight offset; never fabricate header text
+  or offsets; deep links / Back / Forward / selection persistence / mobile drill-down; read-only
+  actions never start an LLM call; use the real Phase 4 contracts. No dark mode, fake KPIs, bulk
+  analysis, graph (Phase 7) or recorded replay (Phase 6); no backend contract changes; no commit.
+- **Implemented (Claude):**
+  - `web/src/lib`: typed API client (`api.ts`), History-API router (`router.ts`), resource and
+    polling hooks (`hooks.ts`), mailbox hook with honest counts (`mailbox.ts`), wording (`copy.ts`),
+    formatting, **safe highlighting** (`highlight.ts`), the **claims registry** (`claims.ts`) and
+    cross-email fact rows (`findings.ts`);
+  - `web/src/components`: inbox pane, investigation pane (verdict, analysis, evidence, original
+    message with highlights, entities, processing), add-email dialog on a native `<dialog>`,
+    risk badge, primitives; CSS Modules over CSS-variable tokens (`styles/tokens.css`);
+  - `web/vite.config.ts` now also holds the vitest/jsdom configuration and the dev proxy.
+  - Dev dependencies added (approved): `jsdom`, `@testing-library/react`,
+    `@testing-library/user-event`. **No new runtime dependency.** No backend file was changed.
+- **Failures and corrections during the work (not hidden):**
+  1. `vitest/config` does not export `loadEnv`; imported from `vite` instead (typecheck caught it).
+  2. Four of my first component tests failed for **test** reasons (a label that also contained
+     its hint text, two buttons with the same name, "No risk found" also being a filter label, a
+     duplicated status text). Fixed the tests and, for the label, the **component** (proper
+     `htmlFor`/`aria-describedby` pairing).
+  3. **A real layout defect that unit tests could not see:** `#root` had no height, so the
+     workspace grew to 2,613 px and the panes never scrolled. Found only by measuring in a real
+     browser; fixed (`#root`/`html`/`body` full height).
+  4. **A second one, found the same way:** visually-hidden (`.sr-only`, absolutely positioned)
+     text inside the scrolling lists widened the *page's* scroll range, so a click-driven
+     `scrollIntoView` shifted the whole page 124 px. Fixed by making the scrollers
+     `position: relative`; re-measured (page scroll range = viewport).
+  5. Focus after opening a message was never moved to its heading (the effect ran before the
+     data had loaded). Moved into the loaded component; verified in the browser.
+  6. Identical evidence quotes appeared twice (one rule/finding citing the same passage twice);
+     now de-duplicated per owner and unit-tested. A whole-message automatic-check highlight
+     drowned out the AI's precise citations; broad automatic spans are now drawn quietly.
+  7. A clearer message when the API is down behind the dev proxy (it answered a bare 500).
+  8. I briefly staged three `.gitkeep` deletions with `git rm --cached`; I unstaged them at once
+     (index is untouched; the files are removed from the working tree only).
+- **Executed validation:**
+  - `npm run typecheck` (all workspaces): exit 0. `npm run build`: exit 0 (JS 253 kB / 77 kB gz,
+    CSS 21 kB / 5 kB gz).
+  - `npm test`: server **27 files / 514 tests** (unchanged), web **7 files / 58 tests**, all pass.
+    Web tests: highlight/offset safety, router parsing/building, copy invariants (unassessed is
+    never "no risk"), API client contract and error mapping, risk-count honesty, claims
+    (verified-target / header / dedupe / foreign-evidence), and component integration with a
+    faked `fetch` (inbox, deep link, narrow drill-down + Back, 404, no POST on open, explicit
+    analyze POST, verified highlight, wrong-offset no highlight, header evidence quoted, add
+    dialog with analysis off by default).
+  - **Real browser** (headless Edge via the DevTools protocol; real Express API on a temporary
+    database; Vite dev server; the model replaced by a **local stub OpenAI-compatible endpoint**
+    that counts calls; no Groq call and no seed email left the machine):
+    - 1280×800: 10 seeded emails, counts 0/6/0/0/4, no horizontal overflow; E004 shows the
+      cross-email findings (account 6621 → 9902, routing unchanged, 3.4× amount, "heuristic, not
+      proof"), the PDF attachment text with a verified highlight; Back/Forward and a deep link to
+      E009 keep the selection; filters and search are in the URL; unknown id → "Message not
+      found". **Stub call count after all read-only steps: 0.**
+    - Explicit flow: paste with analysis off → stored, `Not analyzed yet`, **0 calls**; explicit
+      Analyze → Reading → Assessing → `Analyzed by AI`, **exactly 2 calls**, High risk, 5 verified
+      highlight segments, "Show in message" activates the cited passage; reload → still complete,
+      **no new call**.
+    - Provider down (stub stopped) → "AI analysis was not available", verdict stays
+      **Not assessed** (never safe-looking), retry offered. API stopped → banner, list error with
+      retry, detail error; no crash.
+    - 375×812: list only → tap → detail only with a Back link → list; dialog is full-screen; no
+      horizontal overflow; focus lands on the message heading.
+    - Keyboard: Tab order is logical, every focused control shows the ring, ArrowDown moves
+      within the list, Enter opens, Esc closes the dialog and focus returns to its opener.
+    - No console errors in any run.
+  - **Secret/diff checks:** repository scan for the actual key value and `gsk_` patterns: only the
+    git-ignored `.env`; `.env` and the temporary databases are not in `git status`.
+- **Not verified / limitations (honest):**
+  - Not tested on real mobile hardware or in Safari/Firefox; no screen-reader run (NVDA/VoiceOver);
+    no automated accessibility audit tool (axe) was available, so a11y is checked by construction
+    + the keyboard/ring/target-size measurements above. Contrast ratios were computed from the
+    token values, not measured with a tool.
+  - Tap-target check flagged only the visually hidden skip link and an inner input inside a 44 px
+    search field; I judged both acceptable, not zero-issue.
+  - Automatic-check evidence is shown at the granularity the server returns (often a whole
+    sentence or the whole body); the UI quiets very wide spans but cannot make them narrower.
+  - Dates are shown in UTC (labelled). No dark mode, no graph, no recorded replay (by scope).
+  - Each poll refetches the list plus a 500-item overview (same cost class as D38).
+  - One real browser engine (Chromium/Edge); no visual-regression tooling.
+- **Time:** not measured. **Next:** independent review; nothing committed or pushed.
+
+## 2026-10-11 — Phase 5 final visual acceptance gate
+
+- **Prompt (summary):** one focused visual acceptance review before commit authorization:
+  screenshots of the real frontend on the real Express API (temporary DB, stubbed LLM), review
+  from three perspectives, targeted behaviour checks; fix a failed "Run again anyway
+  confirmation" or "visible UTC" check minimally with a regression test; fix only clear P0/P1
+  visual defects; no backend/shared change, no new features or dependencies.
+- **Failures found (both targeted checks failed, then were corrected):**
+  1. "Run again anyway" (shown after the automatic retry limit) sent `force=true` on the first
+     click. It now opens an inline confirmation ("Run this message again?", "Yes, run again" /
+     "Cancel"); `force=true` is sent only on confirmation. Verified live: run count stayed 3 after
+     the first click and after Cancel.
+  2. The inbox row date showed "9 Jun 2026" with no time-zone designation (only the detail date
+     said UTC). `formatDay` now appends "UTC". Regression tests: `format.test.ts` (2) and an
+     `App.test.tsx` test for the confirmation flow.
+  - My first regression test for (1) failed because of an unescaped `?` in a regex of the test
+    itself (twice); corrected the test, not the code.
+  - One of my own commands killed its shell (a process match on the stub's command line) before it
+    wrote its script; re-ran with the script written first. No effect on results.
+- **Evidence:** 1280x800 and 375x812 screenshots in a temporary directory outside the repository
+  (not staged). Read-only browsing: 0 stub calls. No horizontal overflow at 375 px on inbox,
+  detail, cross-email section or dialog. No console errors.
+- **Validation:** typecheck exit 0; server 27 files / 514 tests; web 8 files / 61 tests; build
+  exit 0.
+- **Not changed (subjective or not P0/P1, reported to the reviewer):** see the final report
+  of this gate.
+- **Next:** independent approval; nothing committed or pushed.
+
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->

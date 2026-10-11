@@ -1,17 +1,86 @@
+/*
+ * Design tokens. One light theme; semantic names so a dark theme could later be a token swap.
+ * Contrast ratios computed from these values (WCAG relative luminance, not a tool audit):
+ * ink on surface 17:1, ink-3 on surface 5.7:1 (page bg 5.2:1, sunken chips 5.0:1), each risk
+ * foreground on its own tint >= 5.7:1, accent on surface 7.9:1, white on accent 7.9:1.
+ */
 :root {
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --color-bg: #ffffff;
-  --color-text: #1a1a1a;
-  --space-4: 1rem;
-}
+  /* Type */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  --text-xs: 0.75rem; /* 12 */
+  --text-sm: 0.8125rem; /* 13 */
+  --text-md: 0.875rem; /* 14 */
+  --text-lg: 1rem; /* 16 */
+  --text-xl: 1.25rem; /* 20 */
+  --text-2xl: 1.625rem; /* 26 */
+  --leading-tight: 1.25;
+  --leading-body: 1.55;
 
-body {
-  margin: 0;
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-}
+  /* Surfaces and ink */
+  --bg: #f6f4ef;
+  --surface: #ffffff;
+  --surface-2: #fbfaf7;
+  --surface-sunken: #f0eee8;
+  --border: #e4e0d6;
+  --border-strong: #cfc9bb;
+  --ink: #0f1b33;
+  --ink-2: #3b4863;
+  --ink-3: #5b667e;
+  --ink-inverse: #ffffff;
 
-main {
-  padding: var(--space-4);
+  /* Interaction */
+  --accent: #4338ca;
+  --accent-hover: #3730a3;
+  --accent-soft: #eef0ff;
+  --accent-border: #c7cbf5;
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+
+  /* Evidence highlight: its own hue, deliberately not a risk color */
+  --mark-bg: #e4e7ff;
+  --mark-line: #4338ca;
+  --mark-active-bg: #c9cfff;
+  --mark-soft-bg: #f3f4ff;
+
+  /* Risk semantics (always paired with text and an icon) */
+  --risk-high-fg: #a4132a;
+  --risk-high-bg: #fdecef;
+  --risk-high-border: #f3b6c0;
+  --risk-medium-fg: #8a4b00;
+  --risk-medium-bg: #fff3dc;
+  --risk-medium-border: #f0cf8f;
+  --risk-low-fg: #1e4e8c;
+  --risk-low-bg: #eaf2fc;
+  --risk-low-border: #b5cfee;
+  --risk-none-fg: #0f6b4a;
+  --risk-none-bg: #e6f5ee;
+  --risk-none-border: #a9d9c2;
+  --risk-unassessed-fg: #4a5468;
+  --risk-unassessed-bg: #f0eee8;
+  --risk-unassessed-border: #b5b0a2;
+
+  /* Feedback */
+  --danger-fg: #a4132a;
+  --danger-bg: #fdecef;
+  --info-fg: #1e4e8c;
+  --info-bg: #eaf2fc;
+
+  /* Shape and space */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --shadow-1: 0 1px 2px rgba(15, 27, 51, 0.06);
+  --shadow-2: 0 8px 24px rgba(15, 27, 51, 0.12);
+
+  /* Layout */
+  --header-h: 56px;
+  --list-w: clamp(340px, 30vw, 420px);
+  --measure: 72ch;
+  --tap: 44px;
 }

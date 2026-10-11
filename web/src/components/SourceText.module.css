@@ -1,0 +1,36 @@
+.text {
+  margin: 0;
+  max-height: 560px;
+  overflow: auto;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.mark {
+  padding: 1px 0;
+  border-bottom: 2px solid var(--mark-line);
+  border-radius: 2px;
+  background: var(--mark-bg);
+  color: inherit;
+  cursor: pointer;
+}
+.active {
+  background: var(--mark-active-bg);
+  box-shadow: 0 0 0 2px var(--mark-line);
+}
+
+/* A broad automatic-check span: visible, but it must not drown out precise citations. */
+.soft {
+  border-bottom: 1px dotted var(--mark-line);
+  background: var(--mark-soft-bg);
+}
+.soft.active {
+  background: var(--mark-active-bg);
+}

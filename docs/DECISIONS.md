@@ -1072,6 +1072,151 @@ never by ingestion alone (D39/D40); (d) 409 rather than 202 for "already process
 - **Found by a real-server check:** the unknown-endpoint message initially dropped the `/api`
   prefix; fixed and asserted.
 
+## Phase 5 records (frontend)
+
+All Phase 5 records are **contemporaneous** (2026-10-11). Status: **implemented within the
+authorized Phase 5 scope; awaiting independent review**. Provenance: unit/component tests run in
+jsdom against a faked `fetch`; the browser checks ran a real Express API on a temporary database
+behind the Vite dev server with the model replaced by a local stub endpoint (no provider call, no
+seed email left the machine). Alternatives were considered conceptually; none was benchmarked.
+
+**Needs your decision (flagged, not assumed approved):** (a) the three approved dev dependencies
+(`jsdom`, `@testing-library/react`, `@testing-library/user-event`) are now in `web/package.json`;
+(b) "Run again anyway" after the automatic retry limit sends `force=true` (an explicit user
+action, D40); (c) UTC date display; (d) every poll refetches the list and a 500-item overview
+(D49); (e) the investigation page is one scrolling column rather than tabs.
+
+## D46. Frontend architecture: no new runtime dependencies
+
+- **Selected:** React 18 + Vite as scaffolded; CSS Modules over CSS-variable tokens; a ~90-line
+  History-API router (`lib/router.ts`) whose state (selection, search, filters, sort, add dialog)
+  lives in the URL; a typed client (`lib/api.ts`, the only place that calls `fetch`); two small
+  hooks (`useResource`, `usePolling`); a native `<dialog>`; an inline SVG icon set.
+- **Alternatives:** React Router / TanStack Query / a component library / an icon package
+  (rejected: each adds a dependency to solve problems this surface does not have; evaluated
+  conceptually only); component state for selection (rejected: breaks deep links and Back).
+- **Trade-offs:** the router and resource hook are bespoke (no caching, no request dedupe, no
+  scroll restoration); acceptable for two routes and one resource per pane.
+- **Verification (executed):** router parse/build round-trip tests; browser Back/Forward and a
+  deep link keep the selection; typecheck/build clean; bundle 77 kB gzipped JS.
+
+## D47. Evidence-first investigation: a claims registry with separated provenance
+
+- **Selected:** `buildClaims(detail)` produces one list of *claims* (quote, where, optional
+  verified highlight target) from three sources that the UI never blends: **AI judgment**
+  (quotes the model cited), **automatic checks** (rule indicators) and **cross-email findings**.
+  Each is labelled, and a rules-only result carries "Automatic checks only" next to its level.
+  `unassessed` renders as "Not assessed" with an explicit "does not mean safe" note and never as
+  "No risk found". AI-only prose (rationale, tags) is shown only when a validated assessment
+  exists; otherwise only the extraction summary, labelled as "not a risk judgment".
+- **Alternatives:** one merged score/summary (rejected: hides who said what and over-trusts);
+  showing partial AI text when status is `partial` (rejected: the server withholds it for a
+  reason).
+- **Verification (executed):** copy tests (unassessed ≠ none, rules-only wording), component
+  tests (no `data-level="none"` for an unassessed message), real browser (provider down →
+  `Not assessed`, retry offered).
+
+## D48. Highlight safety: only prove, never guess
+
+- **Selected:** a highlight is drawn only when (1) the evidence snippet's text really sits at its
+  recorded offsets in the document text and (2) the cited quote verifiably sits inside it (or, for
+  rule evidence, the located text equals the source slice). Otherwise the quote is shown on its
+  own with "Not highlighted: position could not be verified". **Header evidence is never
+  highlighted** (its offsets refer to a server-side rendering, so it is shown as a quote with
+  "From the message headers"); no header text is reconstructed. Identical passages cited twice by
+  one owner are shown once; a rule span covering most of a document is drawn quietly so it does
+  not bury precise citations.
+- **Alternatives:** best-effort fuzzy search of the quote in the body (rejected: could mark
+  unrelated text as evidence, which the brief forbids); highlighting header ranges against a
+  re-rendered header block (rejected: fabricated offsets).
+- **Trade-off:** some true evidence is shown unhighlighted; deliberate.
+- **Verification (executed):** unit tests for range validation, snippet-relative location,
+  overlapping runs (concatenation always equals the text); component tests (verified → one mark,
+  wrong offset → none with the quote still shown, header → blockquote and no mark); real browser
+  (5 verified segments after an AI run; "Show in message" activates the cited passage).
+
+## D49. Risk counts from a capped list are lower bounds
+
+- **Selected:** the filter chips' counts come from an unfiltered overview request
+  (`limit=500`, the server maximum). When `total > count`, each count is prefixed "≥" and a
+  visible note says "Counts cover only the newest N of M messages". The list header says
+  "Showing X of Y" when its own response is capped.
+- **Alternatives:** counts from the filtered list (rejected: wrong while filtering); a new
+  server aggregate endpoint (rejected: backend contract change without approval).
+- **Trade-off:** one extra request per refresh/poll; beyond 500 messages the counts stay lower
+  bounds.
+- **Verification (executed):** `riskCounts` tests (complete vs capped) and a component test that
+  asserts the note is shown for a capped response.
+
+## D50. Analysis only on explicit intent; polling only to observe
+
+- **Selected:** reads (list, detail, health, polling) are GETs and never start analysis. Starting
+  is a separate POST caused by a click: **Analyze with AI** on a message, or a checkbox in the Add
+  dialog that is **off by default** (and disabled when AI is not configured). The UI says what
+  will be sent before the click. Polling runs only while some message is queued/extracting/
+  analyzing and the tab is visible. `can_reprocess=false` (complete or retry limit) hides the
+  normal action; after the limit an explicit "Run again anyway" sends `force=true` (confirmation required, see D54).
+- **Alternatives:** auto-analyze on open or on add (rejected: unrequested provider calls and
+  cost); analyze-all (out of scope by instruction).
+- **Verification (executed):** client test (`analyze:false` by default; reads are `GET`);
+  component tests (no POST on open; one POST after the click; dialog default); real browser with
+  a call-counting stub: read-only session 0 calls, store-only 0 calls, one explicit analysis
+  exactly 2 calls (extraction + risk), reload 0 new calls.
+
+## D51. Responsive master–detail and accessibility by construction
+
+- **Selected:** ≥900 px: list (clamp 340–420 px) beside detail, both scrolling independently, the
+  selected row marked with `aria-current`. <900 px: list **or** detail by URL, a visible Back
+  link, native back works, the add dialog is full-height. Risk is always text + icon + colour
+  (unassessed also dashed). One focus ring, skip link, polite live region for state changes,
+  focus moved to the message heading when a message opens, ArrowUp/Down in the list, 44 px
+  targets on narrow screens, reduced-motion respected. Contrast ratios computed from the tokens
+  (every text/background pair I computed is ≥ 4.9:1; disabled controls are intentionally
+  lower and were not measured).
+- **Alternatives:** tabs inside the detail pane (rejected for now: a single column keeps the
+  evidence and the original message adjacent; open to review); dark mode (excluded by
+  instruction).
+- **Verification (executed):** 375×812 and 1280×800 in a real browser: no horizontal overflow,
+  drill-down/Back, dialog focus trap + Esc + focus return, focus ring on every tabbed control.
+- **Not verified:** screen-reader behaviour, Safari/Firefox, real touch hardware.
+
+## D52. Defects only a real browser could find (recorded for honesty)
+
+- **What happened:** after all unit/component tests passed, measuring in a real browser showed
+  (1) `#root` without a height made the workspace 2,613 px tall so panes never scrolled, and
+  (2) absolutely positioned visually-hidden text inside the scrolling lists extended the page's
+  scroll range, so programmatic scrolling shifted the entire app. Both are fixed
+  (`#root` full height; scrollers `position: relative`; app `overflow: hidden`) and re-measured.
+- **Why it matters:** jsdom has no layout, so the 58 web tests could not have caught either. The
+  browser pass is part of the evidence, not an extra.
+
+## D53. Test tooling and strategy
+
+- **Selected:** vitest in `web` with `jsdom`, `@testing-library/react`, `user-event` (approved);
+  a faked `fetch` per test (never the network); `matchMedia`, `scrollIntoView` and `<dialog>`
+  stubbed where jsdom lacks them. No `@testing-library/jest-dom` (not approved), so assertions use
+  plain DOM properties. Real-browser verification is a script outside the repository (CDP over
+  Node's built-in WebSocket against Edge), not shipped.
+- **Trade-off:** the browser script is not part of CI; its results are recorded in PROCESS.md.
+
+## D54. Phase 5 visual gate: confirmation for a forced re-run; every displayed date says UTC
+
+- **Context:** the final visual gate required (a) explicit confirmation before `force=true` and
+  (b) a visible UTC designation on displayed UTC dates. Both were found NOT satisfied (D50 had
+  made "Run again anyway" a single click; list rows had no designation).
+- **Selected:** (a) the button opens an inline confirmation callout; only "Yes, run again" sends
+  `force=true`; Cancel and navigation send nothing. (b) `formatDay` returns "... UTC"; every
+  displayed date (list, detail, run log) now carries it.
+- **Alternatives:** `window.confirm` (rejected: unstyled, inaccessible in tests); a tooltip-only
+  UTC hint (rejected: not visible).
+- **Trade-offs:** one extra click for a rare action; list dates are slightly longer, which
+  truncates very long sender addresses a little earlier on a 375 px screen.
+- **Verification (executed):** component test (first click and Cancel send no POST; confirm sends
+  `...reprocess?force=true`), date-format tests, and a live run against the real API where the
+  run count stayed at 3 until confirmation.
+- **Approval:** correction made at the reviewer's direction in the gate; awaiting final approval.
+  This amends D50 ("Run again anyway sends force=true"): it now requires confirmation.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a
@@ -1081,4 +1226,6 @@ Status: part of the approved Phase 0 scaffold, low-risk and reversible.
 
 Phase 1 additions of the same kind: `vitest` as the test runner. The three `.gitkeep` files
 in directories that became populated were removed in the corrective round (review finding
-F4, human-approved); `.gitkeep` files in still-empty directories remain.
+F4, human-approved); `.gitkeep` files in still-empty directories remain. In Phase 5 the
+`.gitkeep` files in `web/src/{api,components,pages}` were removed as well (`api` and `pages` are
+not used: the client lives in `web/src/lib`).

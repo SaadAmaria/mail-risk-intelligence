@@ -1,0 +1,112 @@
+.app {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  height: var(--header-h);
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.logo {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  background: var(--ink);
+  color: var(--ink-inverse);
+}
+.title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 700;
+  font-size: var(--text-lg);
+}
+.conn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
+}
+.connShort {
+  display: none;
+}
+.connDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ink-3);
+}
+.ok .connDot {
+  background: var(--risk-none-fg);
+}
+.warn .connDot {
+  background: var(--risk-medium-fg);
+}
+@media (max-width: 599px) {
+  .title {
+    font-size: var(--text-md);
+  }
+  .connFull {
+    display: none;
+  }
+  .connShort {
+    display: inline;
+  }
+}
+.banner {
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+}
+.main {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  outline: none;
+}
+.wide {
+  grid-template-columns: var(--list-w) minmax(0, 1fr);
+}
+.listCol {
+  min-height: 0;
+  min-width: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.detailCol {
+  min-height: 0;
+  min-width: 0;
+  background: var(--bg);
+}
+.placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+}

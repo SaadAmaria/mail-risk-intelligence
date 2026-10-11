@@ -1,4 +1,5 @@
-import { defineConfig, loadEnv } from "vite";
+import { loadEnv } from "vite";
+import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 // The dev proxy follows the backend port: PORT from the shell or the root .env
@@ -13,6 +14,11 @@ export default defineConfig(({ mode }) => {
       port: 5173,
       // 127.0.0.1 (not "localhost") to match the API's IPv4 loopback binding.
       proxy: { "/api": `http://127.0.0.1:${apiPort}` },
+    },
+    test: {
+      environment: "jsdom",
+      include: ["src/**/*.test.{ts,tsx}"],
+      restoreMocks: true,
     },
   };
 });

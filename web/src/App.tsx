@@ -1,24 +1,133 @@
-import { useEffect, useState } from "react";
-import { HealthResponse, RISK_LEVELS } from "@mri/shared";
+import { useEffect, useRef, useState } from "react";
+import type { IngestResponse } from "@mri/shared";
+import { api } from "./lib/api";
+import { announce } from "./lib/announce";
+import { aiConnection } from "./lib/copy";
+import { useDebounced, useMinWidth, useResource } from "./lib/hooks";
+import { useMailbox } from "./lib/mailbox";
+import { buildUrl, navigateTo, useRoute } from "./lib/router";
+import { AddEmail } from "./components/AddEmail";
+import { Dialog } from "./components/Dialog";
+import { Icon } from "./components/Icon";
+import { InboxPane } from "./components/InboxPane";
+import { InvestigationPane } from "./components/InvestigationPane";
+import { Callout, EmptyState } from "./components/ui";
+import s from "./App.module.css";
 
-// Phase 0 placeholder: proves the web -> proxy -> server -> shared-contract wiring.
 export function App() {
-  const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [route, go] = useRoute();
+  const wide = useMinWidth(900);
+  const health = useResource((signal) => api.health(signal), []);
+  const mailbox = useMailbox(route, route.q);
+  const aiConfigured = health.data?.llm.configured ?? false;
+  const conn = aiConnection(health.data?.llm);
 
+  // Search text: typing is immediate, the URL and the request follow after a short pause.
+  const [query, setQuery] = useState(route.q);
+  const debounced = useDebounced(query, 250);
+  const pushed = useRef(route.q);
   useEffect(() => {
-    fetch("/api/health")
-      .then((r) => r.json())
-      .then((json) => setHealth(HealthResponse.parse(json)))
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
-  }, []);
+    if (debounced.trim() !== route.q.trim()) {
+      pushed.current = debounced;
+      go({ q: debounced }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debounced]);
+  useEffect(() => {
+    // Back/Forward or a deep link changed the URL's search: reflect it in the box.
+    if (route.q !== pushed.current.trim() && route.q !== query) setQuery(route.q);
+    pushed.current = route.q;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [route.q]);
+
+  const onAdded = (r: IngestResponse) => {
+    mailbox.refresh();
+    health.reload();
+    navigateTo(buildUrl({ ...route, emailId: r.id, add: false }));
+    announce(
+      r.created
+        ? "Email added."
+        : r.reason === "id_exists"
+          ? "An email with this id was already in the mailbox. Showing it."
+          : "This content was already in the mailbox. Showing the existing message.",
+    );
+  };
+
+  const listHref = buildUrl({ ...route, emailId: null, add: false });
+  const showList = wide || route.emailId === null;
+  const showDetail = wide || route.emailId !== null;
 
   return (
-    <main>
-      <h1>Mail Risk Intelligence</h1>
-      <p>Phase 0 scaffold. Risk levels: {RISK_LEVELS.join(", ")}.</p>
-      {error && <p role="alert">API unreachable: {error}</p>}
-      {health && <p>API status: {health.status}</p>}
-    </main>
+    <div className={s.app}>
+      <a className="skip-link" href="#main" onClick={(e) => { e.preventDefault(); document.getElementById("main")?.focus(); }}>
+        Skip to content
+      </a>
+      <header className={s.header}>
+        <div className={s.brand}>
+          <span className={s.logo}>
+            <Icon name="logo" size={20} />
+          </span>
+          <span className={s.title}>Mail Risk Intelligence</span>
+        </div>
+        <span className={[s.conn, conn.tone === "ok" ? s.ok : conn.tone === "warn" ? s.warn : ""].join(" ")} title={health.data?.llm.model ?? undefined}>
+          <span className={s.connDot} aria-hidden="true" />
+          <span className={s.connFull}>{health.error ? "API unreachable" : conn.text}</span>
+          <span className={s.connShort}>{health.error ? "API down" : conn.short}</span>
+        </span>
+      </header>
+
+      {health.error && !health.data && (
+        <div className={s.banner}>
+          <Callout tone="warn" icon="alert-circle" role="status" title="Cannot reach the server">
+            <p>The mailbox may not load until the API is running.</p>
+          </Callout>
+        </div>
+      )}
+
+      <main id="main" tabIndex={-1} className={`${s.main} ${wide ? s.wide : ""}`}>
+        {showList && (
+          <div className={s.listCol}>
+            <InboxPane
+              route={route}
+              query={query}
+              onQuery={setQuery}
+              onRoute={go}
+              mailbox={mailbox}
+              aiConfigured={aiConfigured}
+              onAdd={() => go({ add: true })}
+            />
+          </div>
+        )}
+        {showDetail && (
+          <div className={s.detailCol}>
+            {route.emailId ? (
+              <InvestigationPane
+                key={route.emailId}
+                id={route.emailId}
+                aiConfigured={aiConfigured}
+                backHref={listHref}
+                onChanged={() => {
+                  mailbox.refresh();
+                  health.reload();
+                }}
+              />
+            ) : (
+              <div className={s.placeholder}>
+                <EmptyState icon="shield" title="Select a message to investigate">
+                  Each message shows its risk, the exact passages behind it, and how it compares with the rest of the
+                  mailbox.
+                </EmptyState>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      <Dialog open={route.add} title="Add an email" onClose={() => go({ add: false })}>
+        <AddEmail aiConfigured={aiConfigured} onDone={onAdded} onCancel={() => go({ add: false })} />
+      </Dialog>
+
+      <div id="announcer" className="sr-only" role="status" aria-live="polite" />
+    </div>
   );
 }
