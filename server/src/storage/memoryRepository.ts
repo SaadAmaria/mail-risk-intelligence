@@ -1,16 +1,18 @@
-import type { StoredEmail } from "@mri/shared";
+import type { AnalysisRecord, StoredEmail } from "@mri/shared";
+import { assertAnalysisInvariants } from "./analysisInvariants";
 import {
   compareByDate,
   generateEmailId,
-  type EmailRepository,
   type InsertResult,
   type ListOptions,
+  type MailboxRepository,
   type PreparedEmail,
 } from "./repository";
 
 /** Map-backed repository for tests and tooling that don't need SQLite. */
-export class MemoryRepository implements EmailRepository {
+export class MemoryRepository implements MailboxRepository {
   private readonly byId = new Map<string, StoredEmail>();
+  private readonly analyses = new Map<string, AnalysisRecord>();
   private readonly byHash = new Map<string, string>();
   private nextAttachmentId = 1;
 
@@ -48,6 +50,21 @@ export class MemoryRepository implements EmailRepository {
 
   countEmails(): number {
     return this.byId.size;
+  }
+
+  getAnalysis(emailId: string): AnalysisRecord | null {
+    const a = this.analyses.get(emailId);
+    return a ? structuredClone(a) : null;
+  }
+
+  saveAnalysis(record: AnalysisRecord): void {
+    assertAnalysisInvariants(record);
+    if (!this.byId.has(record.email_id)) throw new Error(`Unknown email id: ${record.email_id}`);
+    this.analyses.set(record.email_id, structuredClone(record));
+  }
+
+  listAnalyses(): AnalysisRecord[] {
+    return [...this.analyses.values()].map((a) => structuredClone(a));
   }
 
   close(): void {

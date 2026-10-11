@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { HeaderField } from "./email";
 
 // ---- Shared enums -------------------------------------------------------
 
@@ -84,10 +85,13 @@ export const ExtractionSchemaVersion = 1 as const;
 
 export const Extraction = z.object({
   schema_version: z.literal(ExtractionSchemaVersion),
-  sender: Address,
+  // Header fields come from the Phase 1 normalized email (code is the source of truth) and are
+  // explicitly null/empty when the source had no such header: nothing is invented.
+  sender: Address.nullable(),
   recipients: z.array(Address),
   date: z.string().nullable(),
-  subject: z.string(),
+  subject: z.string().nullable(),
+  missing_headers: z.array(HeaderField),
   summary: z.string().max(400),
   facts: z.object({
     amounts: z.array(

@@ -1,15 +1,39 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import type { MailboxAddress, NormalizedAttachment, StoredAttachment, StoredEmail } from "@mri/shared";
+import {
+  Extraction,
+  RiskAnalysis,
+  type AnalysisRecord,
+  type MailboxAddress,
+  type NormalizedAttachment,
+  type RunLog,
+  type StoredAttachment,
+  type StoredEmail,
+} from "@mri/shared";
+import { assertAnalysisInvariants } from "./analysisInvariants";
 import {
   generateEmailId,
-  type EmailRepository,
   type InsertResult,
   type ListOptions,
+  type MailboxRepository,
   type PreparedEmail,
 } from "./repository";
 import { SCHEMA_V1, SCHEMA_VERSION } from "./schema";
+
+interface AnalysisRow {
+  email_id: string;
+  status: AnalysisRecord["status"];
+  analysis_mode: AnalysisRecord["analysis_mode"];
+  provenance: AnalysisRecord["provenance"];
+  extraction_json: string | null;
+  assessment_json: string | null;
+  warnings_json: string | null;
+  attempts_json: string | null;
+  model: string | null;
+  prompt_version: string | null;
+  updated_at: string;
+}
 
 interface EmailRow {
   id: string;
@@ -44,7 +68,7 @@ interface AttachmentRow {
   extracted_text: string | null;
 }
 
-export class SqliteRepository implements EmailRepository {
+export class SqliteRepository implements MailboxRepository {
   private readonly db: Database.Database;
   private closed = false;
 
@@ -158,6 +182,94 @@ export class SqliteRepository implements EmailRepository {
   countEmails(): number {
     const row = this.db.prepare("SELECT COUNT(*) AS n FROM emails").get() as { n: number };
     return row.n;
+  }
+
+  getAnalysis(emailId: string): AnalysisRecord | null {
+    const row = this.db.prepare("SELECT * FROM analyses WHERE email_id = ?").get(emailId) as AnalysisRow | undefined;
+    return row ? this.hydrateAnalysis(row) : null;
+  }
+
+  listAnalyses(): AnalysisRecord[] {
+    const rows = this.db.prepare("SELECT * FROM analyses ORDER BY email_id ASC").all() as AnalysisRow[];
+    return rows.map((r) => this.hydrateAnalysis(r));
+  }
+
+  saveAnalysis(record: AnalysisRecord): void {
+    assertAnalysisInvariants(record);
+    this.db
+      .prepare(
+        `INSERT INTO analyses (email_id, status, analysis_mode, provenance, extraction_json,
+           assessment_json, warnings_json, attempts_json, model, prompt_version, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(email_id) DO UPDATE SET
+           status = excluded.status,
+           analysis_mode = excluded.analysis_mode,
+           provenance = excluded.provenance,
+           extraction_json = excluded.extraction_json,
+           assessment_json = excluded.assessment_json,
+           warnings_json = excluded.warnings_json,
+           attempts_json = excluded.attempts_json,
+           model = excluded.model,
+           prompt_version = excluded.prompt_version,
+           updated_at = excluded.updated_at`,
+      )
+      .run(
+        record.email_id,
+        record.status,
+        record.analysis_mode,
+        record.provenance,
+        record.extraction ? JSON.stringify(record.extraction) : null,
+        record.assessment ? JSON.stringify(record.assessment) : null,
+        JSON.stringify(record.warnings),
+        JSON.stringify(record.runs),
+        record.model,
+        record.prompt_version,
+        record.updated_at,
+      );
+  }
+
+  /**
+   * Stored JSON is re-validated on read. If a stored value no longer satisfies the contract it
+   * is dropped and the record is downgraded, so a corrupted or outdated row can never surface
+   * as a complete assessment.
+   */
+  private hydrateAnalysis(r: AnalysisRow): AnalysisRecord {
+    const warnings: string[] = r.warnings_json ? (JSON.parse(r.warnings_json) as string[]) : [];
+    let extraction: Extraction | null = null;
+    let assessment: RiskAnalysis | null = null;
+
+    if (r.extraction_json) {
+      const p = Extraction.safeParse(JSON.parse(r.extraction_json));
+      if (p.success) extraction = p.data;
+      else warnings.push("Stored extraction no longer matches the current schema and was ignored.");
+    }
+    if (r.assessment_json) {
+      const p = RiskAnalysis.safeParse(JSON.parse(r.assessment_json));
+      if (p.success) assessment = p.data;
+      else warnings.push("Stored assessment no longer matches the current schema and was ignored.");
+    }
+
+    let status = r.status;
+    let mode = r.analysis_mode;
+    if (status === "complete" && (!extraction || !assessment)) {
+      status = "failed";
+      mode = "failed";
+      assessment = null;
+    }
+
+    return {
+      email_id: r.email_id,
+      status,
+      analysis_mode: mode,
+      provenance: r.provenance,
+      extraction,
+      assessment,
+      warnings,
+      runs: r.attempts_json ? (JSON.parse(r.attempts_json) as RunLog[]) : [],
+      model: r.model,
+      prompt_version: r.prompt_version,
+      updated_at: r.updated_at,
+    };
   }
 
   close(): void {

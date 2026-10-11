@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { NormalizedEmail, StoredEmail } from "@mri/shared";
+import type { AnalysisRecord, NormalizedEmail, StoredEmail } from "@mri/shared";
 
 /** What the ingestion pipeline hands to storage. */
 export interface PreparedEmail {
@@ -35,6 +35,19 @@ export interface EmailRepository {
   /** Idempotent. */
   close(): void;
 }
+
+/**
+ * Persistence of the per-email analysis state machine and its results. Writes are validated by
+ * `assertAnalysisInvariants`; a record that violates them is rejected, never stored.
+ */
+export interface AnalysisRepository {
+  getAnalysis(emailId: string): AnalysisRecord | null;
+  /** Insert or replace the analysis for `record.email_id`. */
+  saveAnalysis(record: AnalysisRecord): void;
+  listAnalyses(): AnalysisRecord[];
+}
+
+export interface MailboxRepository extends EmailRepository, AnalysisRepository {}
 
 export function generateEmailId(): string {
   return `em_${randomUUID()}`;

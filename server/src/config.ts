@@ -1,10 +1,13 @@
 import { fileURLToPath } from "node:url";
+import { loadLlmSettings } from "./llm/config";
 
-function intFromEnv(name: string, fallback: number): number {
+function intFromEnv(name: string, fallback: number, min = 0, max = Number.MAX_SAFE_INTEGER): number {
   const raw = process.env[name];
   const n = raw === undefined ? NaN : Number.parseInt(raw, 10);
-  return Number.isFinite(n) ? n : fallback;
+  return Number.isFinite(n) && n >= min && n <= max ? n : fallback;
 }
+
+const llm = loadLlmSettings(process.env);
 
 export const config = {
   port: intFromEnv("PORT", 3001),
@@ -15,11 +18,15 @@ export const config = {
   seedPath:
     process.env.SEED_PATH?.trim() ||
     fileURLToPath(new URL("../../mock_mailbox_data.json", import.meta.url)),
-  llm: {
-    baseUrl: process.env.LLM_BASE_URL?.trim() || null,
-    model: process.env.LLM_MODEL?.trim() || null,
-    // Read once; never log or return this value.
-    apiKey: process.env.LLM_API_KEY?.trim() || null,
-    timeoutMs: intFromEnv("LLM_TIMEOUT_MS", 25000),
+  // Contains the API key: never log, serialize, or return this object. Use describeSettings()
+  // or the health payload for anything user-visible.
+  llm,
+  analysis: {
+    // When "true", the server queues unanalyzed emails (and retries retriable ones) at start-up.
+    // Default off so a start-up never sends mailbox content to a provider unprompted.
+    autostart: process.env.ANALYSIS_AUTOSTART?.trim().toLowerCase() === "true",
+    concurrency: intFromEnv("ANALYSIS_CONCURRENCY", 1, 1, 2),
+    maxRuns: intFromEnv("ANALYSIS_MAX_RUNS", 3, 1, 10),
+    queueCapacity: intFromEnv("ANALYSIS_QUEUE_CAPACITY", 200, 1, 10_000),
   },
 } as const;

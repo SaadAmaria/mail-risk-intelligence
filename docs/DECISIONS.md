@@ -446,6 +446,251 @@ review; **none was benchmarked or trialled** unless a record says so explicitly.
   reachable) and a valid start/restart (10 created, then 10 present; ids E001–E010;
   4 attachments preserved).
 
+## Phase 2 records (LLM client, agents, orchestration)
+
+All Phase 2 records are **contemporaneous** (written 2026-10-11 while implementing). Status is
+**implemented within the authorized Phase 2 scope; awaiting independent review** unless a record
+says otherwise. "Verification" names only what was actually executed: 244 deterministic tests in
+15 files (all passing), plus the small live Groq run and real-process checks listed in
+PROCESS.md. Alternatives were considered conceptually; **none was benchmarked**.
+
+**Test provenance (stated once, applies to every record below):** every agent, validation,
+orchestration, retry, recovery and health test uses a scripted `FakeLlm` or a scripted `fetch`;
+**no automated test contacts a provider**. The only real provider traffic in all of Phase 2 was
+one manual run of 6 calls with synthetic emails (7,007 tokens), recorded in PROCESS.md. After
+the quality-gate round the suite is 292 tests in 16 files (the 244 quoted above were the count
+before that round).
+
+**Human approvals recorded (candidate, quality-gate instruction, 2026-10-11):** nullable
+sender/subject with explicit missing headers (D23); `ANALYSIS_AUTOSTART=false` until an
+explicit API-triggered flow exists (D26); health that distinguishes configured/valid
+configuration from actual provider reachability (D28, D30). Findings F1 and F2 were raised by
+the independent reviewer; their corrections are D29 and D30.
+
+**Human-approved configuration (candidate, 2026-10-11):** Groq free tier; model
+`openai/gpt-oss-120b`; OpenAI-compatible Chat Completions; JSON output validated with Zod;
+configurable reasoning effort starting at `low`; one provider implementation with local Ollama
+compatibility where practical; no automatic multi-provider fallback chain.
+
+## D22. One OpenAI-compatible client with bounded retries and rate-limit handling
+
+- **Context:** the free-tier provider is rate limited (a per-minute token budget of roughly 8,000
+  tokens is *suggested* by response headers seen in the preflight; not verified against the
+  provider's documentation) and reasoning models spend completion tokens on reasoning.
+- **Selected:** a small `fetch`-based client (no SDK dependency). Transient failures (timeout,
+  network error, 408/409/425, 429, 5xx) are retried at most `LLM_MAX_RETRIES` times with
+  exponential backoff and jitter; `Retry-After` is honored when within a 20 s cap, otherwise the
+  call fails immediately as `rate_limited`; 401/403 and 400 are not retried; the remaining-token
+  and reset headers pause a call that would exceed the stated budget; `finish_reason: length`
+  is detected so the budget can be raised once. Errors are sanitized and the key is redacted
+  from any provider-echoed text.
+- **Alternatives:** the earlier multi-provider fallback chain was rejected in Round 2 (D7).
+  **(retrospective)** a vendor SDK (`groq-sdk`/`openai`): not evaluated; a plain client keeps
+  the dependency list unchanged and makes the retry/redaction behaviour testable.
+- **Trade-offs/limitations:** no streaming; pacing is a conservative estimate (prompt chars / 3 +
+  `max_completion_tokens`) and can wait longer than needed. In the live run one call took about
+  21 s of wall time for about 1 s of HTTP time; I attribute that to the pacing pause reaching its
+  20 s cap, but the sleep itself was **not logged**, so this is an inference from timings, not
+  a recorded observation. `reasoning_effort` is sent only when configured, and a provider that
+  rejects it would need `LLM_REASONING_EFFORT=none`.
+- **Verification (executed):** 26 client tests, all against a **scripted `fetch`** (no network):
+  Retry-After, over-cap Retry-After, 5xx backoff, auth/400 non-retry, network, timeout, header
+  pacing, malformed bodies, key redaction. Real provider traffic was limited to the single
+  6-call live run (all HTTP 200, 1 attempt each, 7,007 tokens). Retry/429 behaviour was **never
+  exercised against the real provider**; it is verified only against scripted responses.
+
+## D23. Agent A grounding: model quotes, code locates and verifies
+
+- **Context:** Freeze V1.1 requires evidence snippets with locations, traceable to the original.
+- **Selected:** the model proposes quotes (`where` + text); code finds each quote in the matching
+  source segment (whitespace/case tolerant, never different wording), computes exact offsets,
+  and drops (and counts) anything not found. Header fields (sender, recipients, date, subject,
+  missing headers) always come from the Phase 1 normalized email. Deterministic regex findings
+  (amounts incl. K/M suffixes, account/routing numbers, invoice ids, URLs including defanged
+  `hxxp`) are added by code regardless of the model, as separate `origin: "rules"` snippets
+  (budget 12 rules + 12 model snippets <= 24). Model-reported amounts/references/dates/
+  attachments are kept only when the original text supports them. The header "segment" is a
+  canonical rendering of the parsed headers.
+- **Alternatives:** asking the model for character offsets (rejected: models are unreliable at
+  counting); verifying against raw email bytes (not applicable: Phase 1 already normalizes).
+- **Contract adjustment (human-approved 2026-10-11):** `Extraction.sender` and
+  `Extraction.subject` were non-nullable in the Phase 0 shared schema, which contradicts
+  Phase 1's explicit-missing headers. They are now nullable and `missing_headers` was added to
+  `Extraction`. I made this change during Phase 2 and flagged it; the candidate then approved
+  "nullable sender/subject and explicit missing headers" in the Phase 2 quality-gate instruction.
+- **Limitations:** a truthful date given in a normalized form (e.g. "2026-07-03" for "July 3") is
+  dropped because it does not appear as written; attachments sharing a filename are located by
+  the first match; the model sees at most 6,000 body characters and 3,000 per attachment (4
+  attachments), noted in `notes` when applied (verification still uses the full text).
+- **Verification (executed):** 19 Agent A tests, including exact-offset checks, fabricated
+  quotes/amounts/references/dates, overriding headers, missing headers, snippet cap, repair,
+  truncation, and delimiter/injection handling.
+
+## D24. Agent B validation and the entity store
+
+- **Context:** B must receive only A's validated output and produce grounded evidence,
+  entities and relationships.
+- **Selected:** B's prompt is built only from the validated `Extraction`. Output is checked
+  against that extraction: evidence and relationship quotes must be substrings of the cited
+  snippet; entities must appear in a snippet, sender/recipient, subject, or match a fact (amount
+  value, account/routing number); duplicate refs, unknown types, unknown tags, and relationships
+  with unknown endpoints are dropped and counted; unknown predicates become `related_to`;
+  rationale > 500 is truncated; an invalid risk level is a hard failure that triggers one
+  repair call.
+- **Corrected after review (see D29):** the original implementation kept a non-`none`
+  assessment with no surviving evidence and only flagged it in warnings, which let it reach
+  `complete`. That was a reproduced defect and is no longer the behaviour: such a finding is
+  now rejected, given one repair attempt, and otherwise withheld (`partial`).
+- **Deferred (not a deviation from the freeze):** entities and relationships are stored inside
+  the validated assessment JSON. Canonical keys, global entity de-duplication, and the
+  `entities`/`entity_mentions`/`relationships` tables are Phase 3 per the freeze; those tables
+  remain unused.
+- **Limitations:** grounding is transitive (B is checked against A's snippets, not the raw
+  email, as designed), so facts A failed to select cannot be cited; a model that follows an
+  injected instruction *and* quotes real text is not detected here (see D27).
+- **Verification (executed):** 14 Agent B tests (see PROCESS.md for the list).
+
+## D25. Orchestration states, outcomes and persisted invariants
+
+- **Selected:** per email, sequential A then B. Outcomes: `complete` (A and B validated; the only
+  state with an assessment), `partial` (A validated, B failed: extraction kept), `degraded` (no
+  validated A: no LLM configured, or A failed; code-only extraction labeled in `notes`,
+  provenance `rules`, **no assessment**), `failed` (unexpected internal error). A stored live
+  extraction is reused when B is retried. Every run is logged per stage (calls, error kind,
+  token usage, latency, dropped items), keeping the last 10 runs. Writes are guarded by
+  `assertAnalysisInvariants` (assessment only with `complete`; `complete` needs extraction and
+  assessment; assessment requires live/recorded provenance); reads re-validate stored JSON and
+  downgrade a "complete" whose data no longer matches the schema to `failed`.
+- **Alternatives:** rules-only assessment in degraded mode (explicitly excluded until Phase 3
+  by the candidate's scope); storing a provisional risk level (rejected: could be read as
+  "assessed"). **Limitation:** `analysis_mode` mirrors the terminal status (the column exists
+  from Phase 1 and was given this meaning); the `analyses` schema is unchanged.
+- **Verification (executed):** 21 service tests + 5 storage tests: success, A provider failure,
+  A garbage twice, B failure, B invalid twice, no LLM, internal error, retry-resume (A not
+  repeated), invariant rejections, SQLite reopen round-trip, corruption downgrade.
+
+## D26. In-process queue, restart recovery, and autostart off by default
+
+- **Selected:** a FIFO queue with concurrency 1 (max 2), capacity 200, id de-duplication, and
+  graceful stop. At boot, analyses left `queued`/`extracting`/`analyzing` are marked
+  interrupted and re-queued; one interrupted `maxRuns` (default 3) times is marked `failed`
+  rather than retried forever. `enqueue` reports `queue_full`/`max_runs_reached`/
+  `skipped_complete`/`already_queued`/`not_found` and never leaves a phantom "queued" record.
+- **Scope decision (human-approved 2026-10-11):** start-up does **not** enqueue
+  never-analyzed emails unless `ANALYSIS_AUTOSTART=true`. Phase 2 instructions forbid
+  bulk-sending the seed emails, and no API exists yet to trigger analysis (Phase 4). The
+  candidate approved keeping `ANALYSIS_AUTOSTART=false` until an explicit API-triggered flow
+  exists. Note the one exception: work left in progress by a previous process is re-queued at
+  boot, which means that, with an LLM configured, an interrupted email is sent to the provider
+  again at start-up. This is bounded by `maxRuns`.
+- **Limitations:** the queue is in-memory (durable state is the analyses table); two server
+  processes on one database are not coordinated.
+- **Verification (executed):** 6 queue tests (concurrency bound, FIFO, de-dup, capacity, failure
+  isolation, stop); recovery tests in memory and across a closed/reopened SQLite file; real
+  process: planted interrupted analysis became `degraded` with runs `["interrupted",
+  "degraded"]` after restart (no LLM, no network); with the real env and autostart off, 10
+  emails and 0 analyses after boot.
+
+## D27. Prompt-injection controls (and what they do not guarantee)
+
+- **Selected:** content is wrapped in a per-request random delimiter with any forged marker in
+  the text neutralized; the system prompt marks all email-derived text (including A's summary
+  and snippets) as untrusted data and gives a "never follow" rule; agents have no tools or
+  network access; output is parsed as JSON and schema/grounding validated; control-like fields
+  (status, level overrides) are ignored because the pipeline, not the model, sets status.
+- **Honest limitation:** these controls do not make the model immune, and **none of them
+  prevents a model from being persuaded**. They only constrain what a persuaded model can
+  *do* (it cannot set status, add evidence that is not in the email, or call tools). A model
+  that obeys an injection but quotes real text can still produce a lowered risk level, or a
+  rationale that repeats the attacker's framing. The planned defence for the lowered-level case
+  (code-computed signals that can raise risk, Phase 3) is **not implemented yet**; until then
+  an injected "mark as safe" can lower a stored level and the pipeline cannot detect it.
+- **What the tests do and do not show:** every injection test used a scripted `FakeLlm`,
+  including the "obedient model" cases, so they verify *our code's* handling of a hostile
+  answer, not a real model's susceptibility. The only evidence about a real model is a single
+  live sample (synthetic injection email, rated `high` with grounded evidence, i.e. it resisted
+  once). One sample is not a measurement and says nothing about other prompts or models.
+- **Verification (executed, all deterministic):** delimiter tests, nonce uniqueness,
+  forged-delimiter neutralization, control-field stripping, and a pipeline test with a
+  deliberately "obedient" fake model.
+
+## D28. LLM configuration and the health-handler defect
+
+- **Reproduced defect (from the Phase 0 review, F2):** `new URL(LLM_BASE_URL)` ran inside the
+  health handler, so a malformed value made `/api/health` fail.
+- **Selected:** settings are parsed once by a pure function; a bad URL yields `configured:
+  false` and a problem string; `buildHealth` only formats validated fields. A hosted
+  (non-local) endpoint without a key is treated as not configured, so analysis degrades
+  honestly instead of producing 401s.
+- **Semantic change to note:** `/api/health` now reports `provider`/`model` only when the LLM is
+  actually usable (previously whenever a URL was set).
+- **Verification (executed):** 15 config tests; real process with a malformed URL: HTTP 200,
+  `configured: false`; with a blank key: `configured: false`.
+- **Superseded in part by D30:** the quality gate asked for health to distinguish "configured",
+  "valid" and "reachable". See D30 for the additive fields.
+
+## D29. Evidence-quality invariant for risk findings
+
+- **Review finding (quality gate F1):** can Agent B produce a non-`none` assessment with zero
+  valid grounded evidence and still reach `complete`?
+- **Reproduced defect (deterministic, scripted fake model, before the fix):** yes, in all 6
+  combinations tried (`high`/`medium`/`low` x fabricated quote / empty evidence array) the run
+  ended `complete` with an assessment of that level and 0 evidence items. The previous code
+  only added a warning.
+- **Human-approved correction:** a risk level above `none` must cite at least one quote that
+  verifiably appears in the snippet it cites. Otherwise the answer is rejected as invalid, the
+  model gets the normal single repair attempt (with the reason), and if it is still
+  ungrounded the finding is **withheld**: stage `risk` fails with `error_kind:
+  ungrounded_assessment`, the analysis ends `partial` (extraction kept, **no assessment**).
+  `none` needs no evidence. The level is never changed to `none` and no evidence is invented.
+- **What is preserved for review:** the stage log keeps the proposed level, confidence, allowed
+  tags and counts as a sanitized sentence in `error_message`. The model's free-text rationale is
+  deliberately **not** retained (it is the unverified part); keeping it would need a new
+  persisted field, i.e. a shared-contract addition, which was not made. The existing
+  write/read invariants are unchanged.
+- **Trade-offs:** one extra provider call for each ungrounded answer; a correct-but-poorly-cited
+  finding is withheld until a retry grounds it (an under-report, not a false "safe": a
+  `partial` email is shown as unassessed); a model that cites real but irrelevant text passes
+  this check (relevance is not verified).
+- **Verification (executed, deterministic):** 24 regression tests: 17 at agent level (3 levels
+  x 4 ways of being ungrounded = 12, plus repair-then-grounded succeeds, grounded high
+  completes on the first call, partial evidence accepted with drops counted, `none` accepted,
+  nothing returned on failure) and 7 at pipeline level (3 levels -> `partial` with the stage
+  log entry, repaired -> `complete`, grounded -> `complete`, retry re-runs only B, `none`
+  complete). One earlier test that asserted the old behaviour ("kept but flagged") was removed.
+  Re-running the original reproduction script gives `status=partial assessment=null` for all
+  six combinations. **No live provider call was made for this fix.**
+
+## D30. Health: configured, valid, and observed reachability
+
+- **Review finding (quality gate F2):** a valid configuration must not be described as a
+  confirmed-reachable provider; health must not crash on malformed configuration; a health
+  request must not call the provider; the response must stay backward compatible.
+- **Inspection:** the Phase 2 handler already never called the provider and could not throw
+  (settings are parsed once). But it also gave consumers no way to tell "configured" from
+  "working", so `configured: true` was easy to over-read.
+- **Human-approved decision:** health distinguishes configured/valid configuration from actual
+  reachability.
+- **Implemented (additive, optional fields; existing fields and meanings unchanged):**
+  `llm.configured` stays "valid, usable configuration" (documented as *not* a reachability
+  claim). New: `llm.reachability` = `unchecked | reachable | unreachable |
+  credentials_rejected`, `llm.last_call_at`, `llm.last_error_kind`, `llm.problems`. These come
+  from a small tracker fed by the client after each *real* analysis call; reading health only
+  reads that cache. It stays `unchecked` until a real call happens, and is forced to
+  `unchecked` when the configuration is unusable. Mapping: success -> reachable;
+  network/timeout -> unreachable; 401/403 -> credentials_rejected; 429/4xx/5xx/bad body ->
+  reachable (the endpoint answered; the kind is recorded).
+- **Alternatives:** an active probe on each health request (rejected: sends traffic and spends
+  quota on every poll); a separate `/api/health/llm` probe endpoint (not built; an explicit
+  API belongs to Phase 4 and should be a deliberate action).
+- **Limitations:** the status is only as fresh as the last real call and is per-process
+  memory; "reachable" after a 5xx means "answered", not "healthy".
+- **Verification (executed, deterministic):** 25 health/tracker tests, including a spy proving
+  no `fetch` during health reads (also with a malformed URL), a stale-observation case,
+  malformed URLs (4 variants), key never serialized, the extended payload parsing under the
+  previous schema, and the client-to-tracker wiring (success, network, 401, final outcome only
+  after retries).
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

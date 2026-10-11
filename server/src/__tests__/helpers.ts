@@ -156,3 +156,13 @@ export function prepared(over: Partial<NormalizedEmail> = {}, id?: string): Prep
   const email = makeNormalized(over);
   return { id, email, raw_source: `raw:${email.subject}:${email.body}`, content_hash: computeContentHash(email) };
 }
+
+/** Await a promise that is expected to reject and return the rejection, typed. */
+export async function rejection<E = Error>(p: Promise<unknown>): Promise<E> {
+  try {
+    await p;
+  } catch (e) {
+    return e as E;
+  }
+  throw new Error("expected the promise to reject");
+}
