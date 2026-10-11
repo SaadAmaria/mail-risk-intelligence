@@ -996,6 +996,66 @@ authenticity.
 - **Time:** total development time was not measured.
 - **Next:** nothing further was run; no additional recording is authorized.
 
+## 2026-10-11 — E001 fixture commit and the E007 recording (factual note)
+
+- **E001 fixture commit:** `9e0f0fd3d5e354ad58c6ac9100ba732d15f3013a`
+  (`feat(fixtures): add verified Groq recording for E001`) was pushed to `origin/main`. It is the
+  baseline of this entry; E001 and E004 are therefore recorded and committed.
+- **Authorization:** the operator authorized ONE live recording CLI invocation for seed email E007
+  only (`api.groq.com`, `openai/gpt-oss-120b`), as a deliberate negative control (a routine HR
+  message), including the existing bounded repair and transport-retry behaviour; no second
+  invocation, no `--overwrite`, and an explicit instruction not to force the model to return `none`.
+- **Pre-flight and dry run (all passed before transmission):** branch `main`; `HEAD` ==
+  `origin/main`; clean tree; seed file byte-identical to `HEAD`; E007 is the original record; E001
+  and E004 fixtures valid and byte-identical to their committed SHA-256; manifest listed exactly
+  E001 and E004; E007 had no recording; versions compatible; host and model matched; key present
+  (never printed); no other recorder instance; a private hash snapshot of both fixtures and the
+  manifest was saved; the dry run selected E007 only and reported both existing recordings valid.
+- **Execution:** the single command `npm run record -w server -- --ids E007 --send
+  --authorize-seed-transmission=1` was run exactly once (15:34:08Z to 15:34:10Z, exit 0). It was not
+  repeated.
+- **Provider accounting (from the fixture and run log):** 2 completions (1 Agent A, 1 Agent B), both
+  `finish_reason: stop`; **0 repair calls, 0 transport retries**; no rate-limit, timeout or truncation
+  warnings. Tokens: extraction 720 prompt + 354 completion (77 reasoning), risk 1,162 + 104 (42
+  reasoning), 2,340 in total. Latency 1,146 ms and 533 ms.
+- **Result:** analysis `complete`. Agent A validated (0 dropped, 0 warnings, no repair): it extracted
+  the holiday schedule (building closed July 3-5; Sept 7 closure in the attachment), the header date
+  and the PDF's content, with 4 snippets, all grounded in the original message and attachment.
+  Agent B validated: risk level **none**, confidence high, **no tags, no evidence, no entities and no
+  relationships**; rationale "a routine internal communication about holiday schedules and building
+  closures with no request for money, credentials, or suspicious actions". Deterministic rules level:
+  **none** (0 indicators, 0 cross-email findings). Final aggregated view: **none**, basis
+  `ai_and_rules`, no escalation, no disagreement. Before the replay E007 was "unassessed"; afterwards
+  it is a valid completed AI assessment (a distinct state).
+- **No manual changes:** the stored completions are the provider's raw output as captured; nothing
+  was edited, repaired, or chosen from several attempts (attempt 1 of 1).
+- **Fixture:** `fixtures/recorded/E007.json` (integrity `54ee2139…`) and the updated `index.json`
+  (E001, E004, E007, sorted). The recorder's gate passed: replay in an isolated database reproduced
+  the capture digest (`bc34c1c0…`) and the secret/path scan was clean.
+- **E001 and E004 preserved:** file SHA-256, size, integrity, manifest entry, content hash, result
+  digest and capture time are identical to the pre-run snapshot and to the committed files.
+- **Independent verification:** integrity, manifest, seed content hash and prompt/schema versions
+  recomputed and matching for all three recordings; two further replays of each equal each other and
+  the stored digests; scans found no key value, key pattern, prompt text, authorization text or local
+  path. A real-browser check (headless Edge, real Express backend, new SQLite database, no LLM
+  variables, `.env` not loaded) passed all checks: E007 "Not assessed" with an explicit replay
+  action before; one POST; "No risk found" with "AI-assessed — Recorded" and the rationale matching
+  the API; nothing invented; unchanged after reload; E001 and E004 replayable to high and medium;
+  only E001, E004 and E007 labelled AI-assessed; no live provider activity observed. A backend
+  restart on the same database kept the three completed results and re-ran nothing.
+- **UI wording concern (not changed):** the label "No risk found" reads close to a guarantee of
+  safety. An AI `none` means no risk indicators were identified in that single analysis; it is not
+  proof that a message is safe. A wording such as "No risk indicators identified in this analysis"
+  is preferable and is recorded as a follow-up, outside this commit.
+- **Other known issues (unchanged):** the E009 replay-mode wording, the missing favicon, and the
+  clipped rule-built evidence snippet seen on E001.
+- **What the integrity check shows:** consistency with the current message and pipeline; it does
+  not prove that Groq produced the output.
+- **Scope of recorded data:** E001, E004 and E007 only. All other seed emails, and any pasted or
+  uploaded message, have no recording and are never labelled AI-assessed.
+- **Time:** total development time was not measured.
+- **Next:** nothing further was run; no additional recording is authorized.
+
 
 ---
 

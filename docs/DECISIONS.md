@@ -1432,6 +1432,32 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
 - **Approval:** the human operator authorized the recording and approved documenting and committing
   the accepted fixture.
 
+## D68. Accepted: third genuine recording (E007), a benign negative control
+
+- **Context:** with a high (E001) and a medium (E004) example recorded, the operator authorized one
+  recording of a routine HR message to show that the pipeline does not invent risk.
+- **Selected:** commit `fixtures/recorded/E007.json` and the updated `index.json` exactly as
+  captured, including the model's actual `none` judgment. The run was not steered toward any
+  outcome.
+- **Alternatives considered:** forcing or retrying until `none` (rejected: not genuine, and the
+  instruction was to preserve the actual output); skipping a benign example (rejected: without it
+  the demo shows only positive findings); changing the "No risk found" label first (deferred: a
+  copy change is outside this commit and does not alter any fixture).
+- **Evidence (executed, see PROCESS.md):** 2 real completions, no repairs or retries, status
+  `complete`, AI none / rules none / final none; digest reproduced by the recorder and again
+  independently; E001 and E004 byte-identical before and after; browser checks passed; persistence
+  across reload and a backend restart without re-running.
+- **Limitations and risks:**
+  - A single capture says nothing about run-to-run variance.
+  - `none` is an AI judgment of one message, not proof of safety; the current label "No risk found"
+    can be over-read (follow-up recommended).
+  - Fixtures are bound to the current prompts, parser and seed text (`extract-v1+risk-v1`); any
+    change makes all recordings stale and requires re-recording with new authorization.
+  - Integrity is consistency, not authorship.
+  - The recorder still has no concurrency lock; runs must be serial.
+- **Approval:** the human operator authorized the recording and approved documenting and committing
+  the accepted fixture.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

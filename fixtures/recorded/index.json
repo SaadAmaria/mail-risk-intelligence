@@ -10,6 +10,11 @@
       "email_id": "E004",
       "file": "E004.json",
       "integrity": "393aee2b3727134163ab530e29ce74cc805fccfc0e7307fa933e96ecb54acc03"
+    },
+    {
+      "email_id": "E007",
+      "file": "E007.json",
+      "integrity": "54ee213991c31ba3fb01a005b65c9c500052b7cb1045c244c4ac3fecc53c5d4e"
     }
   ]
 }
