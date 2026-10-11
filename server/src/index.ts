@@ -1,7 +1,7 @@
-import express from "express";
+import { createApp } from "./api/app";
+import { bootstrapAnalysis } from "./analysis/bootstrap";
 import { AnalysisService } from "./analysis/service";
 import { config } from "./config";
-import { healthHandler } from "./health";
 import { OpenAICompatClient } from "./llm/client";
 import { describeSettings } from "./llm/config";
 import { ProviderStatusTracker } from "./llm/status";
@@ -48,19 +48,33 @@ const analysis = new AnalysisService(
   },
 );
 
-const recovered = analysis.recoverInterrupted();
-if (recovered.length > 0) console.log(`analysis: re-queued ${recovered.length} interrupted email(s)`);
+// Start-up never sends mailbox content to a provider unless ANALYSIS_AUTOSTART=true. Interrupted
+// work is normalized to "queued" either way; it only runs when autostart is on or someone calls
+// POST /api/emails/:id/reprocess.
+const boot = bootstrapAnalysis(analysis, { autostart: config.analysis.autostart });
+if (boot.recovered.length > 0) {
+  console.log(
+    `analysis: ${boot.recovered.length} interrupted email(s) marked queued` +
+      (config.analysis.autostart ? " and submitted" : "; waiting for an explicit reprocess request"),
+  );
+}
 if (config.analysis.autostart) {
-  const queued = analysis.enqueueUnanalyzed();
-  console.log(`analysis: autostart queued ${queued.length} email(s)`);
+  console.log(`analysis: autostart queued ${boot.autoQueued.length} email(s)`);
+  if (boot.externalCallsMayStart) console.warn("analysis: external provider calls will start now (ANALYSIS_AUTOSTART=true)");
 } else {
-  console.log("analysis: autostart is off (set ANALYSIS_AUTOSTART=true to analyze at start-up)");
+  console.log("analysis: autostart is off (analysis starts only on an explicit API request)");
 }
 
-const app = express();
-app.use(express.json({ limit: "1mb" }));
-
-app.get("/api/health", healthHandler(config.llm, () => providerStatus.snapshot()));
+const app = createApp({
+  repo,
+  analysis,
+  orgDomains: config.orgDomains,
+  maxRuns: config.analysis.maxRuns,
+  corsOrigins: config.corsOrigins,
+  llm: config.llm,
+  providerStatus: () => providerStatus.snapshot(),
+  log: (m) => console.warn(m),
+});
 
 const server = app.listen(config.port, config.host, () => {
   console.log(`server listening on http://${config.host}:${config.port} (${repo.countEmails()} emails stored)`);

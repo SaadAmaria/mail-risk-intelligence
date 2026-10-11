@@ -528,6 +528,66 @@ authenticity.
 
 **Time:** not measured. **Next:** independent review; nothing committed or pushed.
 
+## 2026-10-11 — Phase 3 commit (factual note)
+
+- **Phase 3 commit:** `00ddf8af856dc18462a6e3453424739c512f57b4`
+  (`feat(risk): add evidence-based risk intelligence and cross-email analysis`) was pushed to
+  `origin/main` of the private repository on authorization: 23 files, 424 tests passing before the
+  commit, local `HEAD`, `origin/main` and `git ls-remote` matched, tree clean. It builds on
+  `4b79cdc` (Phase 2).
+
+## 2026-10-11 — Phase 4: REST API
+
+- **Prompt (summary):** implement `GET /api/emails`, `GET /api/emails/:id`, `POST /api/emails`
+  (JSON paste and multipart TXT/PDF/EML), `POST /api/emails/:id/reprocess`, `GET /api/graph`, keep
+  `GET /api/health`; reuse the existing ingestion, storage, orchestration, risk and entity modules;
+  explicit analysis start/retry with the existing queue and 202; polling only; graph from Phase 3;
+  standard errors, validation, CORS limited to the frontend origin, no auth, loopback binding;
+  integration tests with fake providers; document restart recovery; do not send seed emails to
+  Groq; no UI, no fixtures, no commit.
+- **Implemented (Claude):**
+  - `server/src/api/` (`app`, `views`, `errors`, `cors`), `analysis/bootstrap.ts`,
+    `shared/src/mailboxApi.ts` (types only);
+  - `AnalysisService`: `isActive`, `queueDepth`, and `recoverInterrupted({ run })`;
+  - `index.ts` now builds the app with `createApp` and uses `bootstrapAnalysis`;
+  - `CORS_ORIGIN` configuration and `.env.example`;
+  - one new dependency, `multer` 2.4.0 (plus `@types/multer`).
+- **Failures and corrections during the work:**
+  1. A circular type import in my first `mailboxApi.ts` (it imported from the barrel that
+     re-exports it); replaced with direct module imports.
+  2. Two test-level typing/clean-up issues (a possibly-null `app` inside a closure, an unused
+     variable I had left behind and a sloppy `&&` expression in the ascending-order test).
+  3. A real cosmetic defect found only by calling the running server with curl: the unknown
+     endpoint message said `GET /nope` (Express strips the `/api` mount); fixed with
+     `originalUrl` and asserted.
+  4. The first smoke run reported one FAIL for the missing-email 404. A curl check against the
+     real server showed the correct body and status; the failure was my PowerShell helper
+     (`Invoke-WebRequest` error stream handling), not the API. Not hidden: it is recorded here.
+  5. A deliberate behaviour change that I am flagging: start-up recovery used to re-queue and run
+     interrupted analyses at every boot (a possible silent provider call). It is now normalized
+     to `queued` and runs only with `ANALYSIS_AUTOSTART=true` or an explicit reprocess (D41).
+- **Executed validation:**
+  - `npm test`: **27 files, 514 tests, 514 passed** (424 -> 514, +90): api-ingest 28,
+    api-mailbox 25, api-analysis 12, api-security 10, api-graph 8, api-recovery 7. All earlier
+    tests pass unchanged. No automated test contacts a provider.
+  - `npm run typecheck`: exit 0. `npm run build`: exit 0.
+  - **Mutation check** (temporary, restored byte-identical): boot recovery always submitting work
+    -> 3 tests fail; CORS allowing any origin -> 3; leaking the internal error text in a 500 -> 1;
+    not answering accepted work with 202 -> 2.
+  - **Real server smoke** (the actual entry point, a temporary database, real HTTP incl. curl
+    multipart): no-LLM start (health `configured:false`, list of 10 newest-first, no `none` level,
+    E004 cross-email findings, 404 shape, filters, paste 201, duplicate 200, `.txt` upload 201,
+    `.exe` 415, CORS allow/deny, reprocess 202 -> `degraded` with `final_level: unassessed`,
+    deterministic graph); restart on the same database (state persisted, log says autostart is
+    off); and one real-provider run with a **synthetic** email only (no seed email sent): boot and
+    reads made no provider call (`reachability: unchecked`), `analyze:true` -> 202 -> `complete`
+    with the real model (extraction 800 tokens / 806 ms, risk 1,033 tokens / 336 ms), then health
+    reported `reachable`; the API key appeared in no response and no server output.
+- **Not verified / limitations:** list and detail recompute risk and the entity graph on every
+  call (no caching or pagination); a single process only; multipart buffers a file in memory up to
+  5 MB; polling only; the live check was one synthetic email, not a quality evaluation.
+- **Time:** not measured. **Next:** independent review; nothing committed or pushed.
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->

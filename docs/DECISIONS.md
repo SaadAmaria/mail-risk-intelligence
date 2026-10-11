@@ -917,6 +917,161 @@ cues are English and local; the 2x rule has no minimum amount; people sharing no
 are never linked, so the graph can understate real connections; phrase lists remain unvalidated
 on real mail.
 
+## Phase 4 records (REST API)
+
+All Phase 4 records are **contemporaneous** (2026-10-11). Status: **implemented within the
+authorized Phase 4 scope; awaiting independent review**. Test provenance: every Phase 4 test
+starts the real Express app on an ephemeral loopback port with the real repository and a
+scripted `FakeLlm` (or none), and talks to it over real HTTP; no automated test contacts a
+provider. The suite is 514 tests in 27 files (90 new). Alternatives were considered
+conceptually; none was benchmarked.
+
+**Needs your decision (flagged, not assumed approved):** (a) the new `multer` dependency (D42);
+(b) the change to start-up recovery behaviour (D41, which supersedes the boot wording in D26);
+(c) analysis is started only by an explicit request (`analyze: true` or `POST .../reprocess`),
+never by ingestion alone (D39/D40); (d) 409 rather than 202 for "already processing" and for
+"already complete" without `force` (D40); (e) `GET /api/graph` omits amounts by default (D44);
+(f) the additive response types in `shared/src/mailboxApi.ts`.
+
+## D38. API layering: a thin HTTP layer over the existing modules
+
+- **Selected:** `createApp(deps)` builds the Express app from injected dependencies (repository,
+  analysis service, config values). Routes parse and validate input, call existing ingestion,
+  orchestration, risk and entity modules, and shape the response. Read-side composition lives in
+  `api/views.ts` as plain functions of stored data. The server entry point only wires real
+  dependencies and starts listening. Response contracts are types in
+  `shared/src/mailboxApi.ts`.
+- **Alternatives:** business logic inside route handlers (rejected: untestable without HTTP and
+  duplicates Phase 1-3 rules); a controller/service class hierarchy (more structure than a
+  six-route API needs); OpenAPI-generated or RPC-style contracts (extra tooling; not evaluated).
+- **Trade-offs:** the list endpoint computes risk for every email on every call (O(n^2) from the
+  Phase 3 cross-email step) and the detail endpoint rebuilds the entity graph; fine for tens of
+  emails, not for thousands, and there is no pagination beyond `limit`.
+- **Verification (executed):** all 90 API tests run against the real routes and repository;
+  the full earlier suite (424 tests) passes unchanged.
+
+## D39. Mailbox and ingestion endpoints
+
+- **Selected:**
+  - `GET /api/emails`: newest first (`order=asc` supported), filters `q` (subject/sender/body,
+    case-insensitive), `risk` (`none|low|medium|high|unassessed`, comma list), `status`
+    (`not_started` plus the analysis states), `limit` 1-500. Each item carries sender, subject,
+    date, processing state (with provenance and `in_progress`) and a risk summary whose
+    `final_level` can be `unassessed`, which is distinct from `none`.
+  - `GET /api/emails/:id`: original content and attachments, extraction, the validated assessment
+    (only when `complete`), the risk view (indicators, cross-email findings, escalations,
+    disagreement), and this email's entities and relationships. It omits raw source text, content
+    hash and prompts. A missing or malformed id is a uniform 404.
+  - `POST /api/emails`: JSON `{ raw_text }` or multipart `file` (TXT/EML/PDF), through the Phase 1
+    ingestion unchanged (same limits and error codes). 201 stored, 200 identical content already
+    stored (returns the existing id, `created: false`), 202 when `analyze: true` was also
+    accepted. No analysis runs unless asked.
+- **Alternatives:** separate endpoints per source type (more surface, same behaviour);
+  automatically analyzing on ingestion (rejected: it sends content to a provider as a side
+  effect of storing it, against the "no silent provider requests" requirement).
+- **Limitations:** search is a substring match, not ranked; the list is not paginated by cursor.
+
+## D40. Explicit processing control and polling
+
+- **Selected:** `POST /api/emails/:id/reprocess` calls the existing bounded queue. 202 when
+  accepted; 409 `already_processing` if it is already queued or running (so a double click never
+  creates two concurrent jobs); 409 `already_complete` and 409 `max_runs_reached` unless
+  `?force=true`; 503 `queue_full` with `Retry-After`; 404 for an unknown email. Clients poll
+  `GET /api/emails/:id` (or the list): `processing.status` and `processing.in_progress` expose
+  `queued/extracting/analyzing/complete/partial/degraded/failed`. A validated extraction from a
+  previous attempt is kept and reused when only Agent B must be retried.
+- **Alternatives:** WebSockets/SSE (excluded by the brief's scope and the instruction); returning
+  202 for "already processing" (idempotent and friendly, but it hides that no new job was
+  created, so I chose 409); making `reprocess` always force (would let a repeated click re-send
+  content to the provider).
+- **Limitations:** polling latency; the in-memory queue is lost on restart (durable state is the
+  analyses table); two server processes on one database are not coordinated.
+- **Verification (executed):** gated-model tests observe `extracting` mid-run and then
+  `complete`; concurrent request -> 409 with exactly one A and one B call; force re-run; Agent A
+  failure -> degraded; Agent B failure -> partial then retry runs only B; ungrounded finding ->
+  partial; no LLM -> degraded; `maxRuns`; queue full leaves no phantom "queued" record.
+
+## D41. Start-up recovery: when an interrupted job may call the provider (changes D26)
+
+- **Problem:** Phase 2 re-queued interrupted analyses at every boot, so a restart could send an
+  email to the provider again without anyone asking. That conflicts with "do not silently trigger
+  external provider requests merely because a reviewer opened the mailbox".
+- **Selected:** `recoverInterrupted({ run })`. At boot, interrupted analyses are always marked
+  `interrupted` and normalized to `queued` (nothing looks "in progress", nothing looks safe).
+  They are handed to the worker, and therefore may trigger a provider call, **only** when
+  `ANALYSIS_AUTOSTART=true`. Otherwise they wait until `POST /api/emails/:id/reprocess`.
+  `bootstrapAnalysis` returns `externalCallsMayStart`, true only with autostart on, an LLM
+  configured and work present. A job interrupted `maxRuns` times is marked `failed` either way.
+- **So an external call can start from exactly three things:** autostart at boot, an explicit
+  reprocess request, or `analyze: true` on ingestion. Reading (list, detail, graph, health) never can.
+- **Alternatives:** keep re-queuing at boot (rejected, above); never recover and leave rows in
+  `extracting` (rejected: misleading state); mark them `failed` (rejected: loses a retriable result).
+- **Deviation:** this changes the behaviour I recorded in D26 and is **flagged for approval**.
+  The Phase 2 default (`run: true`) is retained for direct callers so existing tests are unchanged.
+- **Verification (executed):** with a real SQLite file across a simulated restart: autostart off
+  -> status `queued`, run marked interrupted, 0 provider calls even after reads, then an explicit
+  reprocess completes with 2 calls; autostart on -> submitted, `externalCallsMayStart: true`;
+  autostart on with no LLM -> degraded, `externalCallsMayStart: false`; repeated interruption ->
+  `failed`, 0 calls either way; a second restart is idempotent.
+
+## D42. Multipart uploads with `multer`
+
+- **Selected:** `multer` 2.4.0 with memory storage, one `file` field, `fileSize` equal to the
+  Phase 1 upload limit (inclusive), and bounded field/part counts. Three new transitive packages
+  (`append-field`, `busboy`, `streamsearch`; `type-is` was already present through Express), plus
+  the `@types/multer` dev dependency; `npm audit` reported 0 findings.
+- **Alternatives:** `busboy` directly (lower level, more code to get error handling right);
+  accepting a raw body with the filename in a header (not what a browser form sends). Neither was
+  trialled. A hand-written multipart parser was rejected as an avoidable security risk.
+- **Limitations:** the whole file is buffered in memory (capped at 5 MB by default).
+- **Flagged:** a new runtime dependency; please confirm.
+
+## D43. Cross-origin and transport safeguards
+
+- **Selected:** a small allow-list CORS middleware (exact origins from `CORS_ORIGIN`, default
+  the Vite dev origin); no wildcard; no credentials; preflight answered with 204 for any origin
+  but granted only to allowed ones; requests without an `Origin` header are untouched. Every
+  response carries `X-Content-Type-Options: nosniff` and `Cache-Control: no-store`; the framework
+  header is removed. The server still binds `127.0.0.1` by default. No authentication (excluded
+  by the brief).
+- **Alternatives:** the `cors` package (another dependency for ~20 lines); reflecting any origin
+  (rejected).
+- **Limitations:** CORS is a browser control only; anything on the machine can still call the
+  API directly, which is why loopback binding matters.
+
+## D44. Graph API
+
+- **Selected:** `GET /api/graph` returns `{ nodes, edges, meta }` built from Phase 3
+  `buildEntityGraph`: node identity key, type, label, origin (`ai`/`rules`), key basis, source
+  email ids, mention count, and `max_risk` (highest source level; a node seen only in unassessed
+  emails is `unassessed`, never `none`); edges carry predicate, supporting email ids, count and
+  the verified quotes. Amount nodes (and their edges) are omitted unless `include_amounts=true`.
+  The response is sorted and byte-identical for identical data; people are linked only by a
+  verified address, so no edge is invented for an unverified identity.
+- **Alternatives:** returning every entity including amounts (noisy; kept behind a flag);
+  persisting the graph (rejected: derived data that would go stale).
+- **Limitations:** quality depends on Agent B; people without a shared verified address are not
+  linked; the default amount omission is a presentation choice to confirm.
+- **Verification (executed):** 8 graph tests (cross-email organization and account nodes,
+  separate new-account node, deterministic bytes across ingestion order, amount handling, no
+  dangling edges, same-name people not merged, rule-derived people labelled, empty mailbox).
+
+## D45. Error contract and information hygiene
+
+- **Selected:** every error is `{ error: { code, message } }` with a stable `code`. Ingestion
+  codes map to HTTP status (400 empty/invalid, 413 too large, 415 type, 422 unreadable
+  PDF/EML/scan); body-parser and multer failures are mapped; anything unexpected is a generic
+  500 and only the error's NAME is logged (never its message or stack). Responses never include
+  credentials, prompts, raw sources, or stack traces; text from an email is only ever returned
+  as a JSON string value.
+- **Alternatives:** returning the underlying error message (rejected: leaks paths and content).
+- **Verification (executed):** 10 security tests: CORS allow/deny/preflight/none configured; the
+  API key (placed in the settings object on purpose) absent from every body, header and log; prompt
+  and internal field names absent after a full analysis; a repository that throws a message
+  containing the key and a path yields a generic 500 and a name-only log; headers on every response.
+- **Found by a real-server check:** the unknown-endpoint message initially dropped the `/api`
+  prefix; fixed and asserted.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

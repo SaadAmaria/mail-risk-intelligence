@@ -74,6 +74,15 @@ export class AnalysisService {
     return this.llm !== null;
   }
 
+  /** True while this email is waiting in, or running from, the in-process queue. */
+  isActive(emailId: string): boolean {
+    return this.queue.has(emailId);
+  }
+
+  get queueDepth(): { waiting: number; running: number } {
+    return { waiting: this.queue.pending, running: this.queue.active };
+  }
+
   /** Queue one email. Marks it `queued` (unassessed) immediately so it can never look safe. */
   enqueue(emailId: string, opts: { force?: boolean } = {}): EnqueueResult {
     if (!this.repo.getEmail(emailId)) return "not_found";
@@ -104,10 +113,18 @@ export class AnalysisService {
 
   /**
    * Restart recovery: anything left in an in-progress state by a previous process is marked
-   * interrupted and re-queued (bounded by `maxRuns`; beyond that it is marked failed).
-   * Returns the ids that were re-queued.
+   * interrupted and normalized to `queued` (bounded by `maxRuns`; beyond that it is `failed`).
+   *
+   * `run` decides whether the recovered work is also handed to the worker. With `run: false`
+   * (what the server uses unless ANALYSIS_AUTOSTART=true) NO provider call is made: the email
+   * simply waits, visibly "queued" (never safe), until someone explicitly asks for processing.
+   * With `run: true` the recovered emails are processed, which sends their content to the
+   * configured provider again.
+   *
+   * Returns the ids that were recovered (normalized to `queued`).
    */
-  recoverInterrupted(): string[] {
+  recoverInterrupted(opts: { run?: boolean } = {}): string[] {
+    const run = opts.run ?? true;
     const requeued: string[] = [];
     for (const a of this.repo.listAnalyses()) {
       if (!IN_PROGRESS.has(a.status)) continue;
@@ -140,7 +157,11 @@ export class AnalysisService {
         runs: runs.slice(-MAX_RUN_LOGS),
         updated_at: this.now().toISOString(),
       });
-      if (this.queue.enqueue(a.email_id) === "queued") requeued.push(a.email_id);
+      if (!run) {
+        requeued.push(a.email_id);
+      } else if (this.queue.enqueue(a.email_id) === "queued") {
+        requeued.push(a.email_id);
+      }
     }
     return requeued;
   }

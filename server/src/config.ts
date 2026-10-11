@@ -27,6 +27,12 @@ export const config = {
     .split(",")
     .map((d) => d.trim().toLowerCase())
     .filter((d) => /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d)),
+  // Browser origins allowed to call the API (exact match, no wildcard). The Vite dev proxy makes
+  // the frontend same-origin, so this matters only when it is served from another origin.
+  corsOrigins: (process.env.CORS_ORIGIN ?? "http://localhost:5173,http://127.0.0.1:5173")
+    .split(",")
+    .map((o) => o.trim())
+    .filter((o) => /^https?:\/\/[^\s/]+$/.test(o)),
   analysis: {
     // When "true", the server queues unanalyzed emails (and retries retriable ones) at start-up.
     // Default off so a start-up never sends mailbox content to a provider unprompted.

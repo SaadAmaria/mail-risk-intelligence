@@ -3,3 +3,4 @@ export * from "./api";
 export * from "./email";
 export * from "./analysis";
 export * from "./risk";
+export * from "./mailboxApi";
