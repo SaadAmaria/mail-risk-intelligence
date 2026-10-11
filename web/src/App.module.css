@@ -128,3 +128,36 @@
   min-width: 0;
   background: var(--bg);
 }
+
+/* Primary navigation: a quiet tab bar under the header. */
+.subnav {
+  flex: none;
+  display: flex;
+  gap: var(--space-1);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border-bottom: 3px solid transparent;
+  color: var(--ink-2);
+  font-weight: 600;
+  text-decoration: none;
+}
+.navLink:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.navLink[aria-current="page"] {
+  color: var(--accent-hover);
+  border-bottom-color: var(--accent);
+}
+@media (max-width: 599px) {
+  .subnav {
+    padding: 0 var(--space-2);
+  }
+}

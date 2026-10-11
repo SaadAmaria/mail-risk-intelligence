@@ -5,7 +5,7 @@ import { locateCitedQuote, isValidRange } from "./highlight";
  * A "claim" is one piece of evidence shown to the user, with where it came from and (only when
  * it can be proven) exactly where it sits in the original message.
  */
-export type ClaimGroup = "ai" | "check" | "cross";
+export type ClaimGroup = "ai" | "check" | "cross" | "linked";
 
 export type SegmentRef = { kind: "body" } | { kind: "attachment"; index: number };
 
@@ -123,4 +123,46 @@ function evidenceTarget(
   const text = segmentText(detail, seg);
   if (text === null || !isValidRange(text, ev.start, ev.end, ev.text)) return null;
   return { segment: seg, start: ev.start, end: ev.end };
+}
+
+export type EvidenceLinkResult =
+  | { status: "ok"; claim: Claim }
+  /** The reference cannot be tied to this record (never highlighted, never guessed). */
+  | { status: "unavailable"; reason: "no_extraction" | "unknown_snippet" | "not_a_recorded_relationship" };
+
+/**
+ * Resolve a graph evidence link (snippet id + quote) against THIS email's stored record.
+ *
+ * Nothing in the URL is trusted: the pair must appear as evidence of one of the email's own
+ * validated relationships, the snippet must exist in its extraction, and a highlight target is
+ * produced only by the same verification the AI-citation highlights use (the snippet really is at
+ * its recorded offsets and the quote really is inside it). Header evidence, or anything that does
+ * not verify, yields a claim with no target: the quote is shown, no text is marked.
+ */
+export function resolveRelationshipEvidence(detail: EmailDetailResponse, snippetId: string, quote: string): EvidenceLinkResult {
+  const cited = detail.relationships.some((r) => r.evidence.some((e) => e.snippet_id === snippetId && e.quote === quote));
+  if (!cited) return { status: "unavailable", reason: "not_a_recorded_relationship" };
+  if (!detail.extraction) return { status: "unavailable", reason: "no_extraction" };
+  const snip = detail.extraction.evidence_snippets.find((s) => s.id === snippetId);
+  if (!snip) return { status: "unavailable", reason: "unknown_snippet" };
+
+  let target: ClaimTarget | null = null;
+  const seg = findSegment(detail, snip.location.where, snip.location.filename);
+  const text = seg ? segmentText(detail, seg) : null;
+  if (seg && text !== null) {
+    const hit = locateCitedQuote(text, snip.location, snip.text, quote);
+    if (hit) target = { segment: seg, start: hit.start, end: hit.end };
+  }
+  return {
+    status: "ok",
+    claim: {
+      id: `graph-${snippetId}`,
+      group: "linked",
+      heading: "Evidence for a relationship",
+      quote,
+      where: snip.location.where,
+      filename: snip.location.filename,
+      target,
+    },
+  };
 }

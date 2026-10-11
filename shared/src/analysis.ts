@@ -55,3 +55,44 @@ export interface AnalysisRecord {
 }
 
 export const MAX_RUN_LOGS = 10;
+
+/**
+ * `error_kind` of the skipped risk stage of a run that was an explicit "automatic checks" request.
+ * It is how a client tells that deliberate, rules-only run from a degraded run caused by an AI
+ * failure or by there being no AI at all.
+ */
+export const AUTOMATIC_CHECKS_STAGE_KIND = "automatic_checks_only";
+
+/** True for a run that was an explicit automatic-checks request (no AI was ever involved). */
+export function isAutomaticChecksRunLog(run: RunLog): boolean {
+  return run.stages.some((s) => s.stage === "risk" && s.error_kind === AUTOMATIC_CHECKS_STAGE_KIND);
+}
+
+/**
+ * Runs that count against the automatic AI retry allowance: every run EXCEPT one explicitly marked
+ * as an automatic-checks request. Historical degraded runs that were not so marked still count,
+ * exactly as before. The full run history and `run_count` are unaffected.
+ */
+export function aiAttempts(runs: readonly RunLog[]): number {
+  return runs.filter((r) => !isAutomaticChecksRunLog(r)).length;
+}
+
+/**
+ * Whether an explicit automatic-checks request would add something and be accepted. Mirrors the
+ * server's own refusals (a complete analysis and an AI-produced extraction are never replaced) and
+ * treats an existing rules-only result as nothing left to do.
+ */
+export function canRunAutomaticChecks(a: AnalysisRecord | null, inProgress: boolean): boolean {
+  if (inProgress) return false;
+  if (!a) return true;
+  if (a.status === "complete") return false;
+  if (a.extraction && a.provenance !== "rules") return false;
+  if (a.status === "degraded" && a.provenance === "rules" && a.extraction) return false;
+  return true;
+}
+
+/** True when the most recent run of an analysis was an explicit automatic-checks request. */
+export function isAutomaticChecksRun(runs: readonly RunLog[]): boolean {
+  const last = runs[runs.length - 1];
+  return !!last && last.stages.some((s) => s.stage === "risk" && s.error_kind === AUTOMATIC_CHECKS_STAGE_KIND);
+}

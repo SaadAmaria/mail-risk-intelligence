@@ -433,3 +433,22 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
+
+.graphLink {
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+@media (max-width: 899px) {
+  .alsoLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+    min-width: var(--tap);
+    justify-content: center;
+  }
+  .graphLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--tap);
+  }
+}

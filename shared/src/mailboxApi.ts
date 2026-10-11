@@ -28,6 +28,13 @@ export interface ProcessingSummary {
   in_progress: boolean;
   run_count: number;
   can_reprocess: boolean;
+  /**
+   * True when the latest run was an explicit rules-only request ("automatic checks"), as opposed to
+   * a degraded run caused by an AI failure or by no AI being configured. Always `rules` provenance.
+   */
+  automatic_checks_only?: boolean;
+  /** An explicit automatic-checks request would be accepted and would add something right now. */
+  automatic_checks_available?: boolean;
 }
 
 export interface RiskSummary {
@@ -126,6 +133,17 @@ export interface IngestResponse {
 export interface ReprocessResponse {
   id: string;
   result: "queued";
+  processing: ProcessingSummary;
+}
+
+/**
+ * Response of `POST /api/emails/:id/automatic-checks` (HTTP 200). The request is synchronous and
+ * never involves an AI provider. `performed`: this call stored the rules-only result.
+ * `unchanged`: a rules-only result already existed and was left as it was.
+ */
+export interface AutomaticChecksResponse {
+  id: string;
+  result: "performed" | "unchanged";
   processing: ProcessingSummary;
 }
 

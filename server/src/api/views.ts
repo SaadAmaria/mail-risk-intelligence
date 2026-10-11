@@ -1,3 +1,4 @@
+import { aiAttempts, canRunAutomaticChecks, isAutomaticChecksRun } from "@mri/shared";
 import type {
   AnalysisRecord,
   EmailDetailResponse,
@@ -58,7 +59,11 @@ export function processingSummary(
     in_progress: inProgress,
     run_count: runCount,
     // What an explicit reprocess WITHOUT force would accept.
-    can_reprocess: !inProgress && status !== "complete" && runCount < deps.maxRuns,
+    // Only AI attempts count against the allowance; automatic-checks runs do not.
+    can_reprocess: !inProgress && status !== "complete" && (a ? aiAttempts(a.runs) : 0) < deps.maxRuns,
+    automatic_checks_only:
+      a !== null && a.status === "degraded" && a.provenance === "rules" && isAutomaticChecksRun(a.runs),
+    automatic_checks_available: canRunAutomaticChecks(a, inProgress),
   };
 }
 

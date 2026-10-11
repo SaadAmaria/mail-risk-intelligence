@@ -6,6 +6,7 @@ import { useCallback, useSyncExternalStore } from "react";
  *
  *   /                      mailbox
  *   /emails/:id            investigation of one message
+ *   /graph                 knowledge graph (?node=<id> selection, ?view=list for the list view)
  *   ?q=&risk=&status=&order=   filters (shareable)
  *   ?add=1                 the Add email dialog
  */
@@ -16,9 +17,44 @@ export interface RouteState {
   status: string[];
   order: "asc" | "desc";
   add: boolean;
+  /** Which top-level page: the mailbox (default) or the knowledge graph. */
+  page: "inbox" | "graph";
+  /** Graph page only: selected node id. */
+  node: string | null;
+  /** Graph page only: selected relationship (edge) id. */
+  gedge: string | null;
+  /** Graph page only: graph canvas or the accessible list. */
+  gview: "graph" | "list";
+  /** Graph page, narrow screens only: which of the three sections is shown. */
+  gtab: "overview" | "map" | "entities";
+  /** Graph page filters (all optional, all in the URL). */
+  gtypes: string[];
+  gorigin: string[];
+  grisk: string[];
+  gq: string;
+  gconn: boolean;
+  gamounts: boolean;
 }
 
-export const DEFAULT_ROUTE: RouteState = { emailId: null, q: "", risk: [], status: [], order: "desc", add: false };
+export const DEFAULT_ROUTE: RouteState = {
+  emailId: null,
+  q: "",
+  risk: [],
+  status: [],
+  order: "desc",
+  add: false,
+  page: "inbox",
+  node: null,
+  gedge: null,
+  gview: "graph",
+  gtab: "overview",
+  gtypes: [],
+  gorigin: [],
+  grisk: [],
+  gq: "",
+  gconn: false,
+  gamounts: false,
+};
 
 const csv = (v: string | null): string[] =>
   (v ?? "")
@@ -29,6 +65,7 @@ const csv = (v: string | null): string[] =>
 export function parseLocation(pathname: string, search: string): RouteState {
   const m = /^\/emails\/([^/]+)\/?$/.exec(pathname);
   const sp = new URLSearchParams(search);
+  const isGraph = /^\/graph\/?$/.test(pathname);
   let emailId: string | null = null;
   if (m) {
     try {
@@ -44,10 +81,38 @@ export function parseLocation(pathname: string, search: string): RouteState {
     status: csv(sp.get("status")),
     order: sp.get("order") === "asc" ? "asc" : "desc",
     add: sp.get("add") === "1",
+    page: isGraph ? "graph" : "inbox",
+    node: isGraph ? sp.get("node") || null : null,
+    gedge: isGraph ? sp.get("edge") || null : null,
+    gview: isGraph && sp.get("view") === "list" ? "list" : "graph",
+    gtab: isGraph && sp.get("tab") === "map" ? "map" : isGraph && sp.get("tab") === "entities" ? "entities" : "overview",
+    gtypes: isGraph ? csv(sp.get("types")) : [],
+    gorigin: isGraph ? csv(sp.get("origin")) : [],
+    grisk: isGraph ? csv(sp.get("grisk")) : [],
+    gq: isGraph ? (sp.get("gq") ?? "") : "",
+    gconn: isGraph && sp.get("connected") === "1",
+    gamounts: isGraph && sp.get("amounts") === "1",
   };
 }
 
 export function buildUrl(s: RouteState): string {
+  // A message path always wins; the graph page keeps only its own parameters.
+  if (!s.emailId && s.page === "graph") {
+    const gp = new URLSearchParams();
+    if (s.node) gp.set("node", s.node);
+    if (s.gedge) gp.set("edge", s.gedge);
+    if (s.gtab !== "overview") gp.set("tab", s.gtab);
+    if (s.gview === "list") gp.set("view", "list");
+    if (s.gtypes.length) gp.set("types", s.gtypes.join(","));
+    if (s.gorigin.length) gp.set("origin", s.gorigin.join(","));
+    if (s.grisk.length) gp.set("grisk", s.grisk.join(","));
+    if (s.gq.trim()) gp.set("gq", s.gq.trim());
+    if (s.gconn) gp.set("connected", "1");
+    if (s.gamounts) gp.set("amounts", "1");
+    if (s.add) gp.set("add", "1");
+    const g = gp.toString();
+    return g ? `/graph?${g}` : "/graph";
+  }
   const path = s.emailId ? `/emails/${encodeURIComponent(s.emailId)}` : "/";
   const sp = new URLSearchParams();
   if (s.q.trim()) sp.set("q", s.q.trim());
@@ -91,4 +156,25 @@ export function useRoute(): [RouteState, (patch: Partial<RouteState>, opts?: { r
   }, []);
 
   return [route, go];
+}
+
+/**
+ * Evidence deep link: `/emails/E004?ev=<snippet id>&evq=<quote>`. These are deliberately NOT part
+ * of RouteState, so building any other link from the current route can never carry them along.
+ */
+export function evidenceHref(emailId: string, snippetId: string, quote: string): string {
+  const sp = new URLSearchParams({ ev: snippetId, evq: quote.slice(0, 400) });
+  return `/emails/${encodeURIComponent(emailId)}?${sp.toString()}`;
+}
+
+export function readEvidenceParams(search: string): { snippetId: string; quote: string } | null {
+  const sp = new URLSearchParams(search);
+  const snippetId = sp.get("ev");
+  const quote = sp.get("evq");
+  return snippetId && quote ? { snippetId, quote } : null;
+}
+
+/** The current location's query string, re-read on every navigation. */
+export function useSearch(): string {
+  return useSyncExternalStore(subscribe, () => window.location.search, () => "");
 }

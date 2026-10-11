@@ -294,7 +294,7 @@ describe("recorded demo mode", () => {
 
   it("says recorded analyses are available, never that a provider is reachable", async () => {
     render(<App />);
-    expect((await screen.findAllByText(/Recorded demo analyses available/)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Recorded AI Replay")).length).toBeGreaterThan(0);
     expect(screen.queryByText(/AI reachable/)).toBeNull();
     expect(posts()).toHaveLength(0);
   });

@@ -85,7 +85,7 @@ describe("recorded provenance wording", () => {
   it("describes recorded availability without claiming reachability", () => {
     const off = { configured: false, provider: null, model: null };
     const text = aiConnection(off, { available: true, email_ids: ["E1"], model: "m", captured_at: null, problems: [] }).text;
-    expect(text).toMatch(/Recorded demo analyses available/);
+    expect(text).toBe("Recorded AI Replay");
     expect(text).not.toMatch(/reachable/i);
     expect(aiConnection(off).text).toMatch(/not configured/);
   });

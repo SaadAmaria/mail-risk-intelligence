@@ -1,4 +1,5 @@
 import {
+  aiAttempts,
   MAX_RUN_LOGS,
   type AnalysisRecord,
   type Extraction,
@@ -103,7 +104,8 @@ export class AnalysisService {
     if (prior?.status === "complete" && prior.provenance === "live" && this.provenance === "recorded") {
       return "skipped_complete";
     }
-    if (prior && prior.runs.length >= this.options.maxRuns && !opts.force) return "max_runs_reached";
+    // Explicit automatic-checks runs are in the history but are not AI attempts.
+    if (prior && aiAttempts(prior.runs) >= this.options.maxRuns && !opts.force) return "max_runs_reached";
     // Checked before writing, so a rejected email is never left marked "queued" with no job.
     if (this.queue.pending >= this.options.queueCapacity) return "queue_full";
 
@@ -154,7 +156,7 @@ export class AnalysisService {
         last.outcome = "interrupted";
       }
 
-      if (runs.length >= this.options.maxRuns) {
+      if (aiAttempts(runs) >= this.options.maxRuns) {
         this.repo.saveAnalysis({
           ...a,
           status: "failed",
@@ -196,7 +198,7 @@ export class AnalysisService {
         a !== null &&
         this.llm !== null &&
         (a.status === "partial" || a.status === "degraded" || a.status === "failed") &&
-        a.runs.length < this.options.maxRuns;
+        aiAttempts(a.runs) < this.options.maxRuns;
       if (a === null || retriable) {
         if (this.enqueue(email.id) === "queued") queued.push(email.id);
       }

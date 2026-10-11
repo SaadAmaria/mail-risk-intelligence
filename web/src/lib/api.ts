@@ -2,7 +2,9 @@ import { HealthResponse } from "@mri/shared";
 import type {
   EmailDetailResponse,
   EmailListResponse,
+  GraphResponse,
   IngestResponse,
+  AutomaticChecksResponse,
   ReprocessResponse,
 } from "@mri/shared";
 
@@ -107,6 +109,10 @@ export const api = {
       { signal },
     ),
 
+  /** Read-only. Amounts are omitted by the server unless asked for. */
+  getGraph: (opts: { includeAmounts?: boolean } = {}, signal?: AbortSignal) =>
+    request<GraphResponse>(`/api/graph${opts.includeAmounts ? "?include_amounts=true" : ""}`, { signal }),
+
   getEmail: (id: string, signal?: AbortSignal) =>
     request<EmailDetailResponse>(`/api/emails/${encodeURIComponent(id)}`, { signal }),
 
@@ -128,4 +134,15 @@ export const api = {
       `/api/emails/${encodeURIComponent(id)}/reprocess${opts.force ? "?force=true" : ""}`,
       { method: "POST", json: {}, signal },
     ),
+
+  /**
+   * Rules-only processing of one email. Synchronous; the server runs it on a path that has no
+   * access to any AI provider, so it is safe to offer whatever the AI configuration is.
+   */
+  automaticChecks: (id: string, signal?: AbortSignal) =>
+    request<AutomaticChecksResponse>(`/api/emails/${encodeURIComponent(id)}/automatic-checks`, {
+      method: "POST",
+      json: {},
+      signal,
+    }),
 };

@@ -5,12 +5,15 @@ import { announce } from "./lib/announce";
 import { aiConnection } from "./lib/copy";
 import { useDebounced, useMinWidth, useResource } from "./lib/hooks";
 import { useMailbox } from "./lib/mailbox";
-import { buildUrl, navigateTo, useRoute } from "./lib/router";
+import { buildUrl, DEFAULT_ROUTE, navigateTo, useRoute } from "./lib/router";
 import { AddEmail } from "./components/AddEmail";
 import { Dialog } from "./components/Dialog";
 import { Icon } from "./components/Icon";
 import { InboxPane } from "./components/InboxPane";
 import { InvestigationPane } from "./components/InvestigationPane";
+import { GraphPage } from "./components/graph/GraphPage";
+import { ConnectionStatus } from "./components/ConnectionStatus";
+import { Link } from "./components/Link";
 import { Callout } from "./components/ui";
 import { Welcome } from "./components/Welcome";
 import s from "./App.module.css";
@@ -22,6 +25,8 @@ export function App() {
   const mailbox = useMailbox(route, route.q);
   const aiConfigured = health.data?.llm.configured ?? false;
   const conn = aiConnection(health.data?.llm, health.data?.replay);
+  // Recorded replay is shown only when the backend really is in that mode (no live model configured).
+  const replayMode = !health.error && Boolean(health.data && !health.data.llm.configured && health.data.replay?.available);
 
   // Search text: typing is immediate, the URL and the request follow after a short pause.
   const [query, setQuery] = useState(route.q);
@@ -55,6 +60,9 @@ export function App() {
   };
 
   const listHref = buildUrl({ ...route, emailId: null, add: false });
+  const onGraph = route.page === "graph" && route.emailId === null;
+  // Re-read the graph only when the set of analyzed messages changes.
+  const graphKey = (mailbox.overview.data?.emails ?? []).filter((e) => e.processing.status !== "not_started" && !e.processing.in_progress).length;
   const showList = wide || route.emailId === null;
   const showDetail = wide || route.emailId !== null;
 
@@ -75,12 +83,26 @@ export function App() {
             <span className={s.tagline}>Evidence-first email investigation</span>
           </span>
         </div>
-        <span className={[s.conn, conn.tone === "ok" ? s.ok : conn.tone === "warn" ? s.warn : ""].join(" ")} title={health.data?.llm.model ?? undefined}>
-          <span className={s.connDot} aria-hidden="true" />
-          <span className={s.connFull}>{health.error ? "API unreachable" : conn.text}</span>
-          <span className={s.connShort}>{health.error ? "API down" : conn.short}</span>
-        </span>
+        <ConnectionStatus
+          pillClass={[s.conn, conn.tone === "ok" ? s.ok : conn.tone === "warn" ? s.warn : ""].join(" ")}
+          dotClass={s.connDot ?? ""}
+          fullClass={s.connFull ?? ""}
+          shortClass={s.connShort ?? ""}
+          text={health.error ? "API unreachable" : conn.text}
+          short={health.error ? "API down" : conn.short}
+          title={health.data?.llm.model ?? undefined}
+          replay={replayMode}
+        />
       </header>
+
+      <nav className={s.subnav} aria-label="Primary">
+        <Link href={buildUrl(DEFAULT_ROUTE)} aria-current={!onGraph ? "page" : undefined} className={s.navLink}>
+          Inbox
+        </Link>
+        <Link href={buildUrl({ ...DEFAULT_ROUTE, page: "graph" })} aria-current={onGraph ? "page" : undefined} className={s.navLink}>
+          Knowledge graph
+        </Link>
+      </nav>
 
       {health.error && !health.data && (
         <div className={s.banner}>
@@ -90,8 +112,19 @@ export function App() {
         </div>
       )}
 
-      <main id="main" tabIndex={-1} className={`${s.main} ${wide ? s.wide : ""}`}>
-        {showList && (
+      <main id="main" tabIndex={-1} className={`${s.main} ${wide && !onGraph ? s.wide : ""}`}>
+        {onGraph && (
+          <div className={s.detailCol}>
+            <GraphPage
+              route={route}
+              onRoute={go}
+              emails={mailbox.overview.data?.emails ?? null}
+              totalEmails={mailbox.overview.data?.total ?? null}
+              refreshKey={graphKey}
+            />
+          </div>
+        )}
+        {!onGraph && showList && (
           <div className={s.listCol}>
             <InboxPane
               route={route}
@@ -104,7 +137,7 @@ export function App() {
             />
           </div>
         )}
-        {showDetail && (
+        {!onGraph && showDetail && (
           <div className={s.detailCol}>
             {route.emailId ? (
               <InvestigationPane

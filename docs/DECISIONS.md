@@ -1458,6 +1458,377 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
 - **Approval:** the human operator authorized the recording and approved documenting and committing
   the accepted fixture.
 
+## Phase 7 records (knowledge graph)
+
+All Phase 7 records are **contemporaneous** (2026-10-11). Status: **7B.1 implemented within the
+authorized scope; awaiting independent review**. Provenance: unit/component tests use fixtures;
+the browser run used the real stack with genuine recorded replays and no provider. Phase 9 was not
+defined in the project records.
+
+## D69. Graph UI in native SVG with a pure, deterministic layout (no new dependency)
+
+- **Context:** the brief asks for an interactive graph as a bonus; the repository has no graph
+  library and the rules require approval for dependencies. The data is tens of nodes.
+- **Selected:** native SVG; a pure model (`buildGraphModel`) and a pure layout
+  (`computeLayout`): fixed circular start, fixed-iteration force simulation, components packed by
+  size then id, positions rounded; the layout depends only on the model and the available width.
+  Selection and the Graph/List toggle never re-lay-out.
+- **Alternatives considered:** `d3-force`/`d3-zoom` (small, computation-only; deferred and available
+  as a fallback if layout quality needs it, with approval); cytoscape.js, React Flow, vis-network,
+  sigma.js (heavy, canvas/WebGL or node-editor semantics, poorer accessibility and jsdom testing).
+- **Trade-offs:** the layout is basic (chains render as lines; parallel edges are not offset); pan/zoom
+  is not in this slice.
+- **Verification (executed):** 8 layout tests (determinism, input-order independence, containment,
+  component separation, node separation, empty/single/60-node cases); mutation (random jitter) fails
+  3 tests; identical coordinates after a browser reload.
+- **Approval:** within the 7B.1 authorization; awaiting review.
+
+## D70. The graph shows only what the API provides, with its provenance
+
+- **Selected:** nodes and edges are rendered 1:1 from `GET /api/graph`; the model drops (and the UI
+  reports) an edge whose endpoint is not a node; nothing is merged beyond the backend's identity
+  rules; origin is shown as "AI-identified" versus "Automatic" (header-derived); `max_risk` is
+  presented as "a signal from those messages, not a finding about this entity"; "Not assessed" is
+  kept distinct from "No risk found"; source messages are joined with the real list and unknown ids
+  are shown by id. Entities are never described as suspicious or fraudulent.
+- **Alternatives:** colouring nodes by risk only (rejected: colour alone); synthesizing nodes or edges
+  from `risk.findings` so the E004/E009 story is visible in the graph (rejected here: would
+  invent graph facts and needs a contract change; the comparison stays in the email detail).
+- **Verification (executed):** tests that every rendered id is an API id, that dangling edges are
+  not drawn, that rules-origin entities never read as AI-identified, and the browser check against
+  the API.
+
+## D71. Accessibility and encoding in 7B.1
+
+- **Selected:** nodes are focusable `role="button"` groups with a full descriptive `aria-label`
+  (type, source, risk wording, connection and message counts), Enter/Space selects, Escape clears;
+  edges are decorative for assistive technology and listed with their evidence in the inspector;
+  a real table list view is the non-visual alternative; type is encoded by shape, source by outline
+  style, risk by letter badge, never colour alone; primary navigation is a labelled `nav` with
+  `aria-current`; 44 px targets on narrow screens.
+- **Not verified:** no screen-reader run and no axe audit (as in earlier phases).
+
+## D72. Option B (automatic-checks-only action) is feasible without a provider call; deferred to 7B.3
+
+- **Finding:** see PROCESS.md. In recorded-demo mode the existing reprocess endpoint on an
+  unrecorded message ends `degraded`/`rules` with no provider call (`not_recorded`), and its
+  deterministic extraction supplies header-derived graph nodes.
+- **Constraint:** the action must be offered only when no live provider is configured, because the
+  same endpoint would otherwise call it; the decision is client-side from health (no server
+  parameter), which is acceptable now and a possible future hardening.
+- **Approval:** direction approved by the operator; implementation not yet authorized.
+
+## Phase 7B.2 records (interactive graph investigation)
+
+Contemporaneous (2026-10-11). Status: **implemented within the authorized scope, uncommitted,
+awaiting independent review**. Evidence is from unit/component tests and a real-browser run against
+an isolated no-key stack with recorded replays; no provider was contacted.
+
+## D73. Pan/zoom as pure math over an SVG transform
+
+- **Context:** the graph needs pan, zoom, fit, touch and keyboard operation, testable without a browser.
+- **Selected:** `viewport.ts` holds all arithmetic (zoom about a pointer, clamping, pinch, fit,
+  client-to-user conversion under `meet` scaling); the component only translates events. Zoom 0.5-6x;
+  a 4 px movement threshold separates drag from click and the post-drag click is suppressed.
+- **Alternatives considered:** `d3-zoom` (rejected: a new dependency for ~100 lines of math);
+  CSS `transform` on a div canvas (rejected: SVG gives crisp text and one coordinate system).
+- **Trade-offs:** gestures were exercised via CDP mouse/touch emulation, not on hardware; wheel
+  sensitivity (0.0016 per px, deltas capped at 240) is a judgement, not a measured value.
+- **Verification (executed):** 11 viewport tests; component tests for wheel, drag, pinch, keys,
+  buttons, bounds; mutation (zoom limit removed -> 2 fail; click suppression removed -> 1 fail);
+  browser checks D1-D10 and M4-M5.
+- **Approval:** within the 7B.2 authorization; awaiting review.
+
+## D74. Filters are a pure function of the full model and live in the URL
+
+- **Selected:** `applyFilters(full, filters)` returns the visible model plus hidden counts; the
+  canvas, the list and the counts read the same result; connected-only is evaluated after attribute
+  filters; graph parameters are ignored off the graph page and vice versa; changes use
+  `replaceState` so the Back button is not flooded.
+- **Alternatives:** filtering in the canvas only (rejected: List and Graph could diverge); component
+  state or `localStorage` (rejected: not shareable, not restorable from a link).
+- **Trade-offs:** each filter change re-lays-out the visible subset (deterministic, but nodes may move).
+- **Verification (executed):** 11 filter tests and the URL/parity component tests; mutation (list
+  ignores filters -> 1; connected-only ignored -> 3); browser D1-D10, D20-D22, M6-M7.
+- **Correction recorded:** the filter panel was initially open by default and pushed the graph below
+  the fold; it is now collapsed unless a filter is active.
+
+## D75. Evidence deep links are verified against the email's own record
+
+- **Context:** a graph relationship cites `{email_id, snippet_id, quote}`; the email page must show
+  the right passage without trusting a URL.
+- **Selected:** the link carries `ev` and `evq`; `resolveRelationshipEvidence` accepts it only if the
+  pair is evidence of one of that email's recorded relationships, the snippet exists, and the
+  existing `locateCitedQuote` verifies the quote at the recorded offsets. Otherwise a clear notice and
+  no highlight. Header evidence is shown as a quote only. The parameters are not part of route state, so
+  they do not leak into other message links. Back/Forward return to the graph with its selection.
+- **Alternatives:** highlighting by substring search of the quote (rejected: the brief forbids
+  arbitrary substring matching and it could mark unrelated text); synthesizing offsets (rejected:
+  invents evidence).
+- **Limitation:** evidence whose offsets cannot be verified is shown as a quote without a highlight.
+- **Verification (executed):** 5 resolver tests and 5 navigation tests; mutation (record check
+  removed -> 2 fail); browser D11-D16 (exact body and attachment highlights; header quote-only;
+  forged link refused).
+
+## D76. "Show in graph" uses the canonical key and never fabricates a node
+
+- **Selected:** extracted entities link to `/graph?node=<encoded key>`; amount entities also set
+  `amounts=1` because amounts are excluded from the API by default; if the node is absent the graph
+  explains why and offers recovery (clear filters / include amounts).
+- **Alternative:** deriving a node client-side from the extraction (rejected: duplicates identity
+  rules that belong to the backend).
+- **Verification (executed):** 3 component tests; browser D17-D18.
+
+## D77. Accessibility and RTL in 7B.2
+
+- **Selected:** focusable canvas with documented keys and a button alternative to every gesture;
+  filters as labelled fieldsets with counts; polite result announcements; 44 px targets below 900 px;
+  reduced motion honoured; logical CSS properties in new rules.
+- **Verification (executed):** a component accessibility smoke test (names, unique ids, heading
+  order, fieldsets), an RTL render test, browser RTL check D23 (controls move to the start side, no
+  overflow).
+- **Not verified:** no screen-reader run and no axe audit; this is **not** a screen-reader
+  certification.
+
+## D78. Phase 7B.3 safety recommendation: enforce "automatic checks only" on the server
+
+- **Status:** analysis only; nothing implemented; no reprocess endpoint was called. **Awaiting a
+  human decision; a new endpoint or request parameter is an API contract change requiring approval.**
+- **Problem:** a client-side health check is not a guarantee. Health can be stale, configuration can
+  change between the check and the request, and the existing reprocess endpoint would call the
+  configured provider if one exists.
+- **Recommended mechanism:** a separate server route (for example
+  `POST /api/emails/:id/automatic-checks`) that builds its pipeline with **no `LlmClient` at all**
+  (the rules-only path of the analysis service), so a provider cannot be reached even when a key is
+  configured; synchronous; 409 when a complete analysis already exists (no silent overwrite of an AI
+  result); provenance `rules`.
+- **Alternatives considered here (retrospective, not previously evaluated):** (a) a request flag on
+  the existing reprocess endpoint (weaker: a wrong flag value reaches the provider); (b) a server-wide
+  "recorded only" mode (coarser: affects every request); (c) the client check alone (rejected: not
+  a guarantee).
+- **Required tests:** an `LlmClient` that throws if constructed or called is injected and the route
+  must still succeed; identical behaviour with and without a key; 409 on complete; no change to
+  existing reprocess behaviour; zero outbound calls with a configured key under a network guard.
+- **Residual risk:** the rules path must stay free of any import that can reach the provider; assert
+  this by test, not by convention.
+
+## Phase 7B.3 records (rules-only processing and graph integration)
+
+Contemporaneous (2026-10-11). Status: **implemented within the authorized scope, uncommitted, awaiting
+independent review**. Evidence: unit/API/component tests, mutation checks, and real-browser runs on
+isolated stacks. No provider was contacted. D78 (7B.2) was the recommendation this implements; the
+choices below were made during implementation and are Claude's, pending review.
+
+## D79. A dedicated rules-only route with no path to an LlmClient
+
+- **Context:** a client-side health check is not a security boundary (D78).
+- **Selected:** `POST /api/emails/:id/automatic-checks` served by `AutomaticChecks`
+  (`analysis/automaticChecks.ts`), constructed inside `createApp` from the repository and an
+  `isActive` predicate only. It never touches `AnalysisService`' queue, never receives a client, and
+  cannot be affected by whether a key is configured.
+- **Alternatives:** a flag on reprocess (rejected: one wrong value reaches the provider); a server-wide
+  recorded/rules-only mode (rejected: coarser, needs restart); keeping the client check only (rejected).
+- **Trade-offs / limits:** the module imports `buildDeterministicExtraction` from
+  `agents/extractionAgent.ts`, a file that also contains `runExtractionAgent(client, ...)`;
+  reaching a model would need a client object this module is never given. The guarantee is
+  structural plus tested, not an OS sandbox: any in-process code could in principle call global `fetch`,
+  so a code change adding that would be caught only by the tests below.
+- **Verification (executed):** a tripwire client that throws and counts, a real OpenAI-compatible client
+  carrying a key whose fetch is a counting stub (with a control proving it does fire on the AI path), a
+  fetch guard, a test that walks the static import graph (forbids the provider client, config, queue,
+  replay, AI service, `index.ts`), a source scan for `LlmClient`/`fetch`/`process.env`, a
+  spy proving the route never calls `enqueue`; mutation: adding a provider-client import fails 2 tests,
+  making the route enqueue fails 9.
+- **Approval:** operator authorized the route and contract in the 7B.3 prompt; implementation awaiting review.
+
+## D80. Reuse `degraded` + `rules` provenance; distinguish by the run log
+
+- **Selected:** the stored record is `status: degraded`, `provenance: rules`, deterministic
+  extraction, no assessment, `model/prompt_version: null`; a run whose risk stage is skipped with
+  `error_kind: "automatic_checks_only"`. The API exposes an additive optional
+  `processing.automatic_checks_only` so the list, detail and graph can say "Automatic checks only"
+  instead of "AI analysis was not available".
+- **Alternatives:** a new status (rejected: shared enum, storage and every consumer change); wording
+  inferred from warnings text (rejected: brittle).
+- **Trade-offs:** the run is appended to the run log, so it counts toward the automatic AI retry limit
+  (`ANALYSIS_MAX_RUNS`, default 3); a later AI retry can still be forced.
+- **Verification (executed):** API record assertions, storage invariants unchanged (an assessment is
+  impossible for `rules`), browser D6.
+
+## D81. Request semantics: synchronous, idempotent, protective
+
+- **Contract:** 200 `{id, result: "performed"|"unchanged", processing}`; 404 not found / malformed id;
+  409 `already_processing` (queued or running), 409 `already_complete` (any complete analysis,
+  live or recorded; no force override), 409 `ai_extraction_present` (an AI-produced extraction,
+  e.g. partial, is never replaced). Existing error shape, CORS allow-list and security headers apply.
+- **Concurrency:** read and write happen with no `await` between them on one thread, so concurrent
+  HTTP requests serialize; eight parallel requests produced one `performed` and seven `unchanged`.
+- **Limits:** relies on the single-process, single-thread model with a synchronous repository; a
+  multi-process deployment would need a database-level guard.
+- **Verification (executed):** 17 server tests; mutations on each guard fail tests.
+
+## D82. UI: offer the action only where it adds something
+
+- **Selected:** "Run automatic checks" appears only with no live AI and no recording, for
+  `not_started` or `failed` messages; it never replaces a completed assessment, the recorded replay
+  keeps its place for E001/E004/E007, and with live AI configured the AI action stays the only primary
+  action (the endpoint remains available to API clients). Explanatory copy states that no AI is used and
+  nothing is sent to Groq or any provider.
+- **Trade-off:** a user with a live key has no UI route to a guaranteed-no-AI run; judged acceptable
+  because the brief asks for the action on messages without a recording.
+- **Verification (executed):** 8 component tests, mutations (UI calling reprocess -> 2 fail; labelling a
+  rules-only run as AI -> 1), browser D1-D5, D18-D20, M1-M3.
+
+## D83. The E004/E009 scenario: only what the backend supports
+
+- **Finding:** E009 contributes header-derived people; the shared sender node merges with E004 by
+  identical verified address. No account, amount or relationship node comes from a rules-only run, so the
+  account change is not drawn in the graph.
+- **Not done on purpose:** synthesizing account-change edges (would invent graph facts; the comparison is a
+  read-time finding shown on E004). **Limitation reported:** the graph cannot show the 6621 -> 9902 change.
+- **Verification (executed):** server test and browser D9-D10, D15-D17.
+
+## D84. Residual limitations of 7B.3
+
+- The guarantee is in-process and structural; no OS sandbox or egress firewall (the browser stacks used a
+  process-level guard, which is itself in-process).
+- A rules-only run counts toward the AI retry limit.
+- Idempotency/concurrency rely on a single Node process.
+- No screen-reader or axe verification; touch was emulated through CDP; only Chromium/Edge was exercised.
+- Wording defects may remain in less-visited states (e.g. list rows reading "Automatic checks only" for
+  both the rules level and the run kind).
+## Phase 7D.3 records (spatial knowledge-graph redesign)
+
+Contemporaneous (2026-10-11). Status: **implemented within the authorized scope, uncommitted, awaiting
+independent visual review**. The visual direction was approved by the operator (reference image); the
+engineering choices below are Claude's, pending review.
+
+## D85. Entities as HTML surfaces over an SVG relationship layer, in one fitted transform
+
+- **Context:** the reference needs dimensional, text-rich entity surfaces; the previous SVG circles
+  could not carry names, provenance and risk legibly.
+- **Selected:** each entity is an HTML element (crisp text, wrapping, native focus), relationships are SVG
+  paths drawn from API edges, both inside one layer transformed by `fit * user` so selection, filtering
+  and view toggles never move anything. The viewport math (`viewport.ts`) is reused unchanged: its
+  user space is the stage's CSS pixels, and identity means "fitted".
+- **Alternatives considered:** `foreignObject` inside the old SVG (rejected: Safari positioning and
+  transform quirks); WebGL/Three.js or CSS 3D (rejected, see D90); a canvas library (a new dependency).
+- **Trade-offs:** edges and cards are separate layers (kept in sync by sharing coordinates); 200+ cards
+  would need virtualisation, which was not attempted.
+- **Verification (executed):** layout/overlap tests, browser measurements of overlaps and font size,
+  pan/zoom/pinch tests, mutation checks.
+
+## D86. A deterministic layered layout; unconnected entities in a secondary collection
+
+- **Selected:** `computeSpatialLayout`: longest-path layers by relationship direction (cycles broken by
+  id), barycentre ordering (4 sweeps, ties by id), wrapping of long layers, parallel edges fanned, detour
+  arcs for edges that skip a layer or run against the flow, and label positions slid along their curve
+  to avoid cards and labels. Entities with no relationship are not placed; they are listed as
+  "Not connected" with an explanation, selectable and counted, so no real data is hidden.
+- **Alternatives:** keep the force simulation (diagonals, arbitrary spacing); a message-lane layout
+  (a second structure, duplicates shared entities); hard-coded positions by entity name (rejected by the
+  requirements).
+- **Limitations:** crossings are minimised only by the barycentre pass; very dense components wrap into
+  columns rather than being untangled.
+- **Verification (executed):** 13 layout tests (determinism, input-order independence, real-shaped data
+  topology, no overlaps in both orientations, cycles, dense 60-node graph); 4 mutations fail tests.
+
+## D87. Risk stays a property of the messages, drawn small and worded
+
+- **Selected:** the entity surface carries an envelope-with-letter mark whose accessible text says
+  "Appears in a message rated ..."; risk is never applied to the surface itself, the inspector lists each
+  source message with its own risk badge, and the entity-level summary keeps the existing caveat. A
+  comparison finding is never drawn as a node or an edge.
+- **Open:** without a sender/recipient role in the API, a recipient is still marked by the risk of the
+  message it received. Resolving this needs a contract extension (approval required).
+
+## D88. Relationships are first-class: selectable, with their own evidence view
+
+- **Selected:** a relationship has a URL (`?edge=`), its own inspector (sentence, exact quote, source
+  message, link to the verified passage, findings of its messages) and is reachable from the canvas, the
+  navigator and the List view. The start state features the highest-risk relationship with its cited
+  passage instead of a blank panel.
+- **Verification (executed):** component tests for selection, restoration from the URL and navigator
+  parity; browser journey J3-J7 (evidence passage highlighted exactly in E004; Back keeps the selection).
+
+## D89. Narrow screens: Overview / Map / Entities, and a full-screen details step
+
+- **Selected:** three tabs (in the URL); selecting an entity or relationship is a navigation step that
+  fills the screen, scrolls to its top, and Back returns to the map; filters are compact; instructional
+  text is visually hidden but kept for assistive technology.
+- **Alternatives:** a bottom sheet (new focus and scroll management); the previous below-the-canvas
+  inspector (measured: off-screen after selection).
+- **Verification (executed):** component tests and browser checks at 375, 320 and 768 px.
+
+## D90. True 3D rendering was not used
+
+- **Reason:** the product is an investigation tool; text crispness, keyboard focus and hit-testing matter
+  more than perspective. The depth is produced with an underlay sheet, layered shadows and a lift on
+  selection; motion is limited to a staggered entrance, a glide for zoom and fit, and a highlight that
+  travels along a selected relationship, all disabled under `prefers-reduced-motion`.
+- **Risk:** the result is less dramatic than the reference's tilted slabs; that was a deliberate trade.
+
+## D91. Phase 7E items are preserved, not fixed here
+
+- Cross-origin simple-POST protection, the automatic-checks run consuming one AI retry, and the
+  automatic-checks action being offered for a failed record that holds an AI extraction are unchanged.
+
+## Phase 7E records (security hardening and correctness)
+
+Contemporaneous (2026-10-11). Status: **implemented within the authorized scope, uncommitted, awaiting
+independent review**. The vulnerability and the corrections were identified in the 7C/7D audits; the
+engineering choices below are Claude's, pending review.
+
+## D92. State-changing requests are authorized by the request, not by CORS
+
+- **Context:** a simple cross-origin POST executes its side effects regardless of CORS; the 7C audit
+  reproduced a provider call from a `text/plain` POST.
+- **Selected:** a guard before the body parser and all routes (see PROCESS.md for the policy): trusted
+  origin allow-list (`CORS_ORIGIN`), same-origin on a loopback or listed host, no-Origin allowed unless
+  the browser marks the request cross-/same-site, JSON-only bodies (multipart only for upload), 403/415
+  before any side effect.
+- **Alternatives considered:** a custom header (e.g. `X-Requested-With`) or a CSRF token (breaks the
+  documented curl/script usage, needs a token channel); requiring JSON only (does not stop a
+  text/plain-then-JSON-sniffing route and says nothing about origin); trusting loopback Origin at any port
+  (would let any other local web app drive the API); authentication (out of scope, still absent).
+- **Trade-offs:** a dev server on a non-default port must be listed in `CORS_ORIGIN`; a non-browser
+  client is not restricted.
+- **Verification (executed):** 14 server tests with a throwing/counting fake provider (untrusted origin,
+  rebinding, `null`, cross-site marker, every content type, upload, paste, preflight, trusted origin,
+  same-origin loopback, no Origin); route enumeration; 5 mutations; a real browser attack page against a
+  live-configured stack whose provider is a counter (0 requests; a control reached it).
+- **Limit:** not an authentication or authorization layer.
+
+## D93. AI attempts are counted separately from automatic-checks runs
+
+- **Selected:** `aiAttempts(runs)` in shared; used wherever the allowance is compared (enqueue,
+  recovery, background retry, `can_reprocess`). `run_count` and the history keep every run.
+- **Alternatives:** not recording a run for automatic checks (loses the audit trail and the marker the UI
+  relies on); a separate counter field (migration); resetting `maxRuns` per mode (no).
+- **Verification (executed):** `maxRuns` 1 and 3, restart recovery both ways, background retry,
+  historical unmarked degraded run still counted, `can_reprocess`; 4 mutations.
+
+## D94. The UI offers automatic checks only when the server would accept them
+
+- **Selected:** additive `processing.automatic_checks_available` from the shared predicate; the button
+  uses it (older servers fall back to the narrow rule); a 409 race refreshes and explains.
+- **Not done on purpose:** weakening the server refusal for AI extractions and complete analyses.
+- **Verification (executed):** a table test that the flag equals what the endpoint does for seven kinds
+  of stored record; component tests for failed-with-extraction, partial, existing rules-only and the race.
+
+## D95. Replay-mode status wording and the setup-guide reference
+
+- **Selected:** "Recorded AI Replay" (only when unconfigured and recordings exist) as a disclosure with
+  the approved explanation (also its accessible description) and the live-LLM prompt; the guide label is
+  non-clickable while `LLM_SETUP_GUIDE_URL` is `null` (no README or guide exists).
+- **Verification (executed):** component tests (wording, description, no link, link when configured,
+  never in live or unconfigured mode); browser desktop and mobile panels.
+
+## D96. Phase 7 items still open after 7E
+
+- No authentication or authorization; the setup guide target (Phase 8); the sender/recipient role for
+  entity risk marks (API extension, needs approval); the unused force layout module.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

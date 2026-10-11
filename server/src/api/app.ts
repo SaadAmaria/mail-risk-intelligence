@@ -8,6 +8,7 @@ import type { LlmSettings } from "../llm/config";
 import type { ProviderStatusSnapshot } from "../llm/status";
 import type { MailboxRepository } from "../storage/repository";
 import { corsMiddleware } from "./cors";
+import { unsafeRequestGuard } from "./originGuard";
 import { ApiError, asyncHandler, errorHandler, notFoundHandler } from "./errors";
 import {
   emailDetail,
@@ -18,7 +19,8 @@ import {
   STATUS_FILTERS,
   type ViewDeps,
 } from "./views";
-import type { IngestResponse, ReplayStatus, ReprocessResponse } from "@mri/shared";
+import type { AutomaticChecksResponse, IngestResponse, ReplayStatus, ReprocessResponse } from "@mri/shared";
+import { AutomaticChecks } from "../analysis/automaticChecks";
 
 export interface ApiDeps {
   repo: MailboxRepository;
@@ -43,14 +45,16 @@ const ID_PATTERN = /^[A-Za-z0-9_.-]{1,128}$/;
  * The HTTP layer. Routes only parse and validate input, call the existing ingestion, storage,
  * orchestration and risk modules, and shape the response; they hold no business rules.
  *
- * Nothing in a read route (list, detail, graph, health) can cause a provider call. Analysis is
+ * Nothing in a read route (list, detail, graph, health) can cause a provider call. AI analysis is
  * started only by an explicit request: `POST /api/emails/:id/reprocess`, or `analyze: true` on
- * `POST /api/emails`.
+ * `POST /api/emails`. `POST /api/emails/:id/automatic-checks` is rules-only and has no path to a model.
  */
 export function createApp(deps: ApiDeps): Express {
   const limits: IngestLimits = { ...DEFAULT_LIMITS, ...deps.limits };
   const view: ViewDeps = { repo: deps.repo, analysis: deps.analysis, orgDomains: deps.orgDomains, maxRuns: deps.maxRuns };
   const log = deps.log ?? (() => undefined);
+  // The rules-only path is built from the repository alone: it is never handed an LLM client.
+  const automatic = new AutomaticChecks(deps.repo, { isActive: (id) => deps.analysis.isActive(id) });
 
   const app = express();
   app.disable("x-powered-by");
@@ -62,6 +66,9 @@ export function createApp(deps: ApiDeps): Express {
     next();
   });
   app.use(corsMiddleware(deps.corsOrigins));
+  // Before any body is read or route runs: untrusted browser origins and unsupported content types
+  // cannot cause a side effect (see originGuard.ts for the policy and its limits).
+  app.use(unsafeRequestGuard({ allowedOrigins: deps.corsOrigins, multipartPaths: ["/api/emails"] }));
   // A pasted message is capped in characters by ingestion; this bounds the raw JSON body.
   app.use(express.json({ limit: limits.maxUploadBytes }));
 
@@ -197,6 +204,43 @@ export function createApp(deps: ApiDeps): Express {
           );
         case "queue_full":
           throw new ApiError(503, "queue_full", "The analysis queue is full. Try again shortly.", { "Retry-After": "10" });
+        case "not_found":
+          throw new ApiError(404, "not_found", "No such email.");
+      }
+    }),
+  );
+
+  // ---- explicit rules-only processing (never contacts a provider) --------------------------
+  app.post(
+    "/api/emails/:id/automatic-checks",
+    asyncHandler(async (req, res) => {
+      const email = findEmail(deps.repo, req.params.id);
+      const out = automatic.run(email.id);
+      switch (out.kind) {
+        case "performed":
+        case "unchanged": {
+          const body: AutomaticChecksResponse = {
+            id: email.id,
+            result: out.kind,
+            processing: processingSummary(view, email.id, deps.repo.getAnalysis(email.id)),
+          };
+          res.status(200).json(body);
+          return;
+        }
+        case "busy":
+          throw new ApiError(409, "already_processing", "This email is already queued or being processed.");
+        case "complete":
+          throw new ApiError(
+            409,
+            "already_complete",
+            "This email already has a completed analysis, which automatic checks never replace.",
+          );
+        case "ai_extraction_present":
+          throw new ApiError(
+            409,
+            "ai_extraction_present",
+            "This email already has an AI-produced extraction, which automatic checks never replace.",
+          );
         case "not_found":
           throw new ApiError(404, "not_found", "No such email.");
       }

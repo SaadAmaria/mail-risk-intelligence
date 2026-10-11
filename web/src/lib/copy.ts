@@ -71,6 +71,8 @@ export const RECORDED_NOTICE = "This uses a previously recorded AI response. No 
 export interface StatusContext {
   mode?: "live" | "recorded" | "none";
   provenance?: Provenance | null;
+  /** The latest run was an explicit rules-only request (automatic checks). */
+  automatic?: boolean;
 }
 
 export function statusCopy(status: ProcessingStatus, aiConfigured: boolean, ctx: StatusContext = {}): StatusCopy {
@@ -117,6 +119,15 @@ export function statusCopy(status: ProcessingStatus, aiConfigured: boolean, ctx:
         step: 2,
       };
     case "degraded":
+      if (ctx.automatic) {
+        return {
+          title: "Automatic checks only",
+          detail:
+            "No AI was used and nothing was sent to an AI provider. These checks are not an AI assessment, so this message is not assessed by AI.",
+          tone: "warn",
+          step: 0,
+        };
+      }
       return {
         title: "AI analysis was not available",
         detail: "Only automatic checks are shown. They are not an AI assessment.",
@@ -150,6 +161,10 @@ export function predicateLabel(p: string): string {
   return p.replace(/_/g, " ");
 }
 
+/** Short explanation of replay mode, also used as the accessible description of the status. */
+export const REPLAY_EXPLANATION =
+  "Previously recorded LLM analyses are available for replay. No new AI provider requests are made in this mode.";
+
 /** Observed AI connection state, from health. Never claims more than was observed. */
 export function aiConnection(
   h: HealthResponse["llm"] | undefined,
@@ -158,7 +173,7 @@ export function aiConnection(
   if (!h) return { text: "AI status unknown", short: "AI ?", tone: "off" };
   // Recorded availability is a different thing from a reachable provider and is worded as such.
   if (!h.configured && replay?.available) {
-    return { text: "Recorded demo analyses available · no AI provider", short: "Recorded", tone: "ok" };
+    return { text: "Recorded AI Replay", short: "Replay", tone: "ok" };
   }
   if (!h.configured) return { text: "AI not configured · automatic checks only", short: "No AI", tone: "off" };
   switch (h.reachability) {
@@ -190,6 +205,7 @@ const ERROR_COPY: Record<string, string> = {
   server_unavailable: "The server is not responding. Check that the API is running.",
   already_processing: "This message is already queued or being analyzed.",
   already_complete: "This message has already been analyzed.",
+  ai_extraction_present: "This message already has an AI extraction, which automatic checks never replace.",
   max_runs_reached: "This message has reached the automatic retry limit.",
   queue_full: "The analysis queue is full. Try again in a moment.",
   not_found: "That message no longer exists.",

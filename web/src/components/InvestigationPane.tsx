@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { EmailDetailResponse, ReplayStatus, RiskIndicator } from "@mri/shared";
 import { ApiRequestError, api } from "../lib/api";
 import { announce } from "../lib/announce";
-import { buildClaims, type Claim, type SegmentRef } from "../lib/claims";
+import { buildClaims, resolveRelationshipEvidence, type Claim, type SegmentRef } from "../lib/claims";
 import {
   CATEGORY_LABEL,
   RECORDED_NOTICE,
@@ -17,7 +17,7 @@ import {
 import { formatAddresses, formatDateTime, pluralize, senderName } from "../lib/format";
 import { useResource, usePolling } from "../lib/hooks";
 import type { HighlightRange } from "../lib/highlight";
-import { buildUrl, DEFAULT_ROUTE } from "../lib/router";
+import { buildUrl, DEFAULT_ROUTE, readEvidenceParams, useSearch } from "../lib/router";
 import { Comparison } from "./Comparison";
 import { Icon } from "./Icon";
 import { Link } from "./Link";
@@ -47,7 +47,7 @@ export function InvestigationPane({ id, aiConfigured, replay, backHref, onChange
   useEffect(() => {
     if (wasWorking.current && !working && detail.data) {
       onChanged();
-      announce(`Analysis finished: ${statusCopy(detail.data.processing.status, aiConfigured).title}.`);
+      announce(`Analysis finished: ${statusCopy(detail.data.processing.status, aiConfigured, { automatic: detail.data.processing.automatic_checks_only }).title}.`);
     }
     wasWorking.current = working;
   }, [working, detail.data, aiConfigured, onChanged]);
@@ -134,7 +134,18 @@ function Loaded({
   onChanged: () => void;
 }) {
   const { email, processing, risk, assessment, extraction } = detail;
-  const claims = useMemo(() => buildClaims(detail), [detail]);
+  // An evidence deep link (from the knowledge graph) is resolved against THIS message's own
+  // record; nothing in the URL is trusted and no text is marked unless it verifies.
+  const search = useSearch();
+  const evParam = useMemo(() => readEvidenceParams(search), [search]);
+  const linked = useMemo(
+    () => (evParam ? resolveRelationshipEvidence(detail, evParam.snippetId, evParam.quote) : null),
+    [detail, evParam],
+  );
+  const claims = useMemo(() => {
+    const base = buildClaims(detail);
+    return linked?.status === "ok" ? [...base, linked.claim] : base;
+  }, [detail, linked]);
   const [activeClaim, setActiveClaim] = useState<string | null>(null);
   const [segIndex, setSegIndex] = useState(0);
   const messageRef = useRef<HTMLElement>(null);
@@ -187,7 +198,20 @@ function Loaded({
     announce("Evidence highlighted in the message.");
   };
 
-  const status = statusCopy(processing.status, aiConfigured, { provenance: processing.provenance });
+  // Jump to the linked passage once, when the message first renders with it.
+  const handledLink = useRef<string | null>(null);
+  useEffect(() => {
+    if (linked?.status !== "ok" || !linked.claim.target) return;
+    if (handledLink.current === linked.claim.id + search) return;
+    handledLink.current = linked.claim.id + search;
+    show(linked.claim);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linked, search]);
+
+  const status = statusCopy(processing.status, aiConfigured, {
+    provenance: processing.provenance,
+    automatic: processing.automatic_checks_only,
+  });
   const chip = basisChip(risk.basis, processing.provenance);
   const claimsFor = (prefix: string) => claims.filter((c) => c.id.startsWith(prefix));
   const aiClaims = claims.filter((c) => c.group === "ai");
@@ -331,10 +355,38 @@ function Loaded({
           <h2 id="evidence-h" className={s.cardTitle}>
             Evidence
           </h2>
+          {linked?.status === "ok" && (
+            <div className={s.group} data-testid="linked-evidence">
+              <Callout tone="info" icon="link" title="Opened from the knowledge graph">
+                <p>
+                  This passage supports a relationship the AI recorded for this message.
+                  {linked.claim.target
+                    ? " It is highlighted in the original message below."
+                    : " Its exact position in the text could not be verified, so it is shown as a quote and nothing is highlighted."}
+                </p>
+              </Callout>
+              <ul className={s.evidenceList}>
+                <ClaimItem claim={linked.claim} active={activeClaim === linked.claim.id} onShow={show} />
+              </ul>
+            </div>
+          )}
+          {linked?.status === "unavailable" && (
+            <Callout tone="warn" icon="alert-circle" role="status" title="That evidence reference is not available">
+              <p>
+                {linked.reason === "unknown_snippet"
+                  ? "The passage it points to is no longer part of this message's analysis (it may have been analyzed again)."
+                  : linked.reason === "no_extraction"
+                    ? "This message has no stored extraction, so the passage cannot be located."
+                    : "It is not evidence of any relationship recorded for this message, so nothing was highlighted."}
+              </p>
+            </Callout>
+          )}
           {claims.length === 0 && risk.indicators.length === 0 && risk.findings.length === 0 ? (
             <EmptyState icon="shield" title="No evidence to show">
               {risk.final_level === "unassessed"
-                ? "This message has not been analyzed and the automatic checks found nothing."
+                ? detail.processing.automatic_checks_only
+                  ? "The automatic checks found nothing to flag. No AI analysis was performed, so this is not an AI assessment."
+                  : "This message has not been analyzed and the automatic checks found nothing."
                 : "Nothing in this message was flagged."}
             </EmptyState>
           ) : (
@@ -472,13 +524,22 @@ function Loaded({
                   <span className={s.entityName}>{en.display_name}</span>
                   <Chip>{en.type}</Chip>
                   <Chip kind={en.origin === "ai" ? "ai" : "rules"}>{en.origin === "ai" ? "AI" : "Automatic"}</Chip>
+                  <Link
+                    href={buildUrl({ ...DEFAULT_ROUTE, page: "graph", node: en.key, gamounts: en.type === "amount" })}
+                    className={s.graphLink}
+                    aria-label={`Show ${en.display_name} in the knowledge graph`}
+                  >
+                    Show in graph
+                  </Link>
                   {en.also_in.length > 0 && (
                     <span className={s.muted}>
                       Also in{" "}
                       {en.also_in.map((rid, i) => (
                         <span key={rid}>
                           {i > 0 && ", "}
-                          <Link href={buildUrl({ ...DEFAULT_ROUTE, emailId: rid })}>{rid}</Link>
+                          <Link href={buildUrl({ ...DEFAULT_ROUTE, emailId: rid })} className={s.alsoLink}>
+                            {rid}
+                          </Link>
                         </span>
                       ))}
                     </span>
@@ -649,7 +710,11 @@ function AnalysisCard({
   const recordedMode = !aiConfigured && Boolean(replay?.available);
   const hasRecording = recordedMode && Boolean(replay?.email_ids.includes(email.id));
   const mode: "live" | "recorded" | "none" = aiConfigured ? "live" : hasRecording ? "recorded" : "none";
-  const status = statusCopy(processing.status, aiConfigured, { mode, provenance: processing.provenance });
+  const status = statusCopy(processing.status, aiConfigured, {
+    mode,
+    provenance: processing.provenance,
+    automatic: processing.automatic_checks_only,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -659,18 +724,50 @@ function AnalysisCard({
   // `can_reprocess` is false for a finished analysis and when the automatic retry limit is hit.
   const limitReached = !inProgress && !complete && !processing.can_reprocess;
   const noRecording = recordedMode && !hasRecording;
-  const canStart = !inProgress && !complete && !noRecording;
+  // Without live AI or a recording, the only action is the server's rules-only endpoint, which has
+  // no path to a provider. It is offered only where the server says it would be accepted and would
+  // add something (a record that holds an AI extraction, or is already rules-only, is not offered).
+  // A server that does not report it falls back to the narrower "nothing stored, or failed" rule.
+  const rulesOnly = mode === "none";
+  const eligible =
+    processing.automatic_checks_available ?? (processing.status === "not_started" || processing.status === "failed");
+  const canAutomatic = rulesOnly && !inProgress && !complete && eligible;
+  /** The state changed between loading this page and acting on it: show the real state, say so. */
+  const RACE_CODES = ["already_complete", "already_processing", "ai_extraction_present"];
+  const canStart = !inProgress && !complete && !rulesOnly;
   const label = limitReached
     ? "Run again anyway"
     : processing.status === "not_started"
       ? mode === "recorded"
         ? "Replay recorded analysis"
-        : aiConfigured
-          ? "Analyze with AI"
-          : "Run automatic checks"
+        : "Analyze with AI"
       : mode === "recorded"
         ? "Retry replay"
         : "Retry analysis";
+
+  const runAutomatic = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.automaticChecks(email.id);
+      announce("Automatic checks finished. No AI was used.");
+      onChanged();
+      reload();
+    } catch (err) {
+      const e = err instanceof ApiRequestError ? err : null;
+      if (e && RACE_CODES.includes(e.code)) {
+        // The server refused because the record changed (for example an AI result arrived): it was
+        // left exactly as it was. Refresh so the page shows the real state.
+        setError(`${errorMessage(e.code, e.message)} Nothing was changed; showing its current state.`);
+        onChanged();
+        reload();
+      } else {
+        setError(errorMessage(e?.code ?? "network_error", e?.message ?? "Could not run automatic checks."));
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const start = async () => {
     setConfirming(false);
@@ -683,7 +780,13 @@ function AnalysisCard({
       reload();
     } catch (err) {
       const e = err instanceof ApiRequestError ? err : null;
-      setError(errorMessage(e?.code ?? "network_error", e?.message ?? "Could not start analysis."));
+      if (e && RACE_CODES.includes(e.code)) {
+        setError(`${errorMessage(e.code, e.message)} Showing its current state.`);
+        onChanged();
+        reload();
+      } else {
+        setError(errorMessage(e?.code ?? "network_error", e?.message ?? "Could not start analysis."));
+      }
     } finally {
       setBusy(false);
     }
@@ -707,6 +810,12 @@ function AnalysisCard({
           <Button variant={limitReached ? "secondary" : "primary"} busy={busy} onClick={limitReached ? () => setConfirming(true) : start}>
             <Icon name={limitReached ? "refresh" : "sparkle"} size={16} />
             {label}
+          </Button>
+        )}
+        {canAutomatic && (
+          <Button variant="primary" busy={busy} onClick={runAutomatic}>
+            <Icon name="shield" size={16} />
+            Run automatic checks
           </Button>
         )}
       </div>
@@ -735,10 +844,18 @@ function AnalysisCard({
         </p>
       )}
       {canStart && mode === "recorded" && <p className={s.muted}>{RECORDED_NOTICE}</p>}
-      {noRecording && !complete && !inProgress && (
+      {canAutomatic && (
         <p className={s.muted}>
-          No recording exists for this message, so only automatic checks are available. Recordings cover the seeded
-          messages only.
+          {noRecording
+            ? "No recording exists for this message, so only automatic checks are available. Recordings cover the seeded messages only. "
+            : "AI analysis is not available here. "}
+          Automatic checks use fixed rules on this server. They do not use AI, and nothing is sent to Groq or any
+          other AI provider. The message is not assessed by AI afterwards.
+        </p>
+      )}
+      {noRecording && !canAutomatic && !complete && !inProgress && (
+        <p className={s.muted}>
+          No recording exists for this message, so no AI analysis is available. Automatic checks are shown above.
         </p>
       )}
       {error && (

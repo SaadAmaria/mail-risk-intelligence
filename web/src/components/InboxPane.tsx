@@ -208,7 +208,7 @@ function Row({
 }) {
   const chip = basisChip(email.risk.basis, email.processing.provenance);
   const working = isInProgress(email);
-  const status = statusCopy(email.processing.status, aiConfigured);
+  const status = statusCopy(email.processing.status, aiConfigured, { automatic: email.processing.automatic_checks_only });
   const showStatus = working || email.processing.status === "failed" || email.processing.status === "partial";
   const href = buildUrl({ ...route, emailId: email.id, add: false });
 

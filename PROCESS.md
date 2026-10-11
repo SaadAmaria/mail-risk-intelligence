@@ -1056,6 +1056,434 @@ authenticity.
 - **Time:** total development time was not measured.
 - **Next:** nothing further was run; no additional recording is authorized.
 
+## 2026-10-11 — E007 fixture commit and Phase 7A/7B.1 (uncommitted)
+
+- **E007 fixture commit:** `a38b31ca4f24bf003d3cb5a7b30762e41b6740ed`
+  (`feat(fixtures): add verified benign Groq recording for E007`) was pushed to `origin/main`. It is
+  the baseline of this entry; E001, E004 and E007 are recorded and committed.
+- **Phase 7A (read-only audit, reviewed):** recovered the originally agreed plan from the planning
+  transcript: Phase 7 is the "knowledge graph (gated)", Phase 8 is "docs and wrap-up". **No Phase 9
+  was ever defined** in the project records (`PHASE_9_SCOPE_UNVERIFIED`). The audit found that
+  `GET /api/graph` supports the intended UI without change, that its edges are AI-derived only,
+  that 8 of 13 nodes on the three recordings are rule-derived header addresses, and that only
+  account 9902 and amount 47,300 (not 6621, 13,900, E009 or the routing observation) exist in the
+  graph; those comparison facts live in `risk.findings` in the email detail.
+- **Authorization (Phase 7B.1 only):** implement the first vertical slice of the graph UI (route,
+  navigation, loading, deterministic layout, SVG, list toggle, selection and inspector, states,
+  basic responsiveness, foundation tests). Not authorized: pan/zoom, URL-persisted filters, evidence
+  deep links, the E004/E009 automatic-checks flow (7B.2/7B.3), any server/shared change, new
+  dependencies, commit or push. Option B (a clearly labelled automatic-checks-only action in
+  recorded-demo mode) is an approved product direction, to be implemented later; only its
+  feasibility was to be assessed now.
+- **Pre-flight:** branch `main`, `HEAD` == `origin/main`, clean tree, seed unchanged, fixtures
+  byte-identical to `HEAD`, E001/E004/E007 replay with digests equal to the captured ones.
+- **Implemented (Claude):**
+  - `web/src/lib/graph/model.ts`: pure model (ids preserved, degree, connected components,
+    order-independent, dangling edges dropped and counted, source resolution against the real email
+    list, incident connections);
+  - `web/src/lib/graph/layout.ts`: deterministic layout (fixed circular start, fixed-iteration
+    Fruchterman-Reingold, components packed by size then id, view-box fit, width-aware rows);
+  - `web/src/lib/graph/labels.ts`: wording for type, origin, identity basis and the risk caveat;
+  - `web/src/components/graph/`: `GraphPage`, `GraphCanvas` (native SVG), `GraphList`
+    (accessible tables), `NodeInspector`, CSS module;
+  - router: `/graph`, `?node=`, `?view=list`; `api.getGraph`; a primary navigation bar in the app
+    shell; no server, shared, prompt, risk-rule or fixture change; no new dependency.
+- **Behaviour:** node shape encodes type, outline encodes source (solid tinted = validated AI,
+  dashed = automatic), a lettered badge encodes the highest source-message risk (H/M/L/✓/?), and
+  "not assessed" is distinct from "no risk found". The inspector shows origin, how identity was
+  established, the risk caveat ("a signal from those messages, not a finding about this entity"),
+  source messages joined with the real list (unknown ids shown by id) and incident relationships
+  with their verified quotes. Selection is in the URL, survives the Graph/List toggle and does not
+  move any node.
+- **Failures and corrections (not hidden):**
+  1. Existing router tests built `RouteState` literals; they needed the three new fields (typecheck
+     caught it), so two existing assertions were updated, not weakened.
+  2. One new test used `getByText("No risk found")` where the text legitimately appears twice (badge
+     and source list); the test now checks the badge's `data-level`.
+  3. **A real visual defect found only in the browser:** on a 375 px screen the graph was scaled to
+     ~0.4x so labels were unreadable. The layout now takes the available width (rows of ~300 units on
+     narrow screens, 760 on wide); scale is ~0.7x and labels are small but legible. This is still the
+     weakest part of the slice and is left for pan/zoom (7B.2).
+  4. My first browser script's waits returned DOM nodes (not serializable), so they never became
+     truthy; the app was fine and the script was fixed. Recorded because it first looked like an app
+     failure.
+  5. Dimmed (non-neighbour) nodes were too faint at 0.32; raised to 0.45.
+- **Executed validation:**
+  - typecheck 0 errors; `npm test`: server **28 files / 559 tests** (unchanged), web **13 files / 117
+    tests** (+42: model 11, layout 8, graph page 20, router 3); build exit 0 (JS 285 kB / 87 kB gz).
+  - **Mutation check** (temporary, restored byte-identical by hash): layout jitter -> 3 tests fail;
+    drawing dangling edges -> 2; rules origin shown as AI -> 1; selection cleared by the view toggle -> 1.
+  - **Real browser** (headless Edge, real Express backend, new SQLite database, no LLM variables,
+    explicit recorded replays of E001/E004/E007 through the API): 23 of 23 checks passed (17 desktop,
+    6 mobile): honest empty state ("0 of 10 messages"), exactly the API's 11 nodes and 3 edges,
+    identical coordinates after reload, selection unmoved, keyboard Enter, inspector content,
+    source-link navigation and Back, list toggle keeping selection, "No risk found" entity labelled
+    automatic, inbox intact, no POST during the session, health unchanged, no overflow at 375 px.
+    Console errors: only the known `/favicon.ico` 404.
+- **Option B feasibility (not implemented):**
+  - *Safe without any provider call:* yes, in recorded-demo mode. `POST /api/emails/:id/reprocess`
+    for a message with no recording runs the real pipeline against the `RecordedLlmClient`, which
+    answers `not_recorded`; the run ends `degraded` with provenance `rules` and a deterministic
+    extraction (already covered by the existing test "an unknown or pasted email is never assessed from
+    a recording"). That extraction is what makes header-derived people appear in the graph.
+  - *Integration point:* `AnalysisCard` in `InvestigationPane.tsx`, where `noRecording` currently
+    hides the action; the same `replay.email_ids` / `aiConfigured` signals decide eligibility.
+  - *Requirements for 7B.3:* offer it only when `!aiConfigured && replay.available && !hasRecording`
+    (never when a live provider is configured, because the same endpoint would then call it); a
+    distinct label ("Run automatic checks"), a notice that no AI is involved, and result copy that
+    says "Automatic checks only" rather than "AI analysis was not available" for this case; keep
+    `force`/retry-limit handling; re-read the graph after completion; tests for live-mode absence and
+    for zero provider calls.
+  - *Residual risk:* eligibility is decided in the client from health; the API has no "automatic
+    only" parameter, so a future server-side guard would be a contract change needing approval.
+- **Known limitations / deferred:** no pan/zoom, URL-persisted filters, monetary toggle, evidence
+  deep links, "Show in graph", or E004/E009 automatic-check flow (7B.2/7B.3); node labels are small
+  on narrow screens; parallel edges between the same pair are not offset; edge labels can crowd in
+  dense graphs; the graph is recomputed by the server on each read; 11 existing physical-direction
+  CSS rules were left untouched (new graph CSS uses logical properties).
+- **Time:** total development time was not measured.
+- **Next:** independent review; nothing committed or pushed.
+
+
+### 2026-10-11 — Phase 7B.2: interactive graph investigation (implemented, **uncommitted**; awaiting review)
+
+- **Authorization:** the operator authorized 7B.2 only: no commit/push, no provider requests, no
+  fixture/seed/server/shared/prompt/risk-rule changes, no new dependency, no 7B.3 implementation.
+  Phase 7B.1 remained intentionally uncommitted and was preserved (HEAD `a38b31c`, branch `main`).
+- **Baseline check:** HEAD as expected; pending 7B.1 changes inspected and left in place; fixtures
+  E001/E004/E007, seed, `server/` and `shared/` identical to HEAD at the end of the phase
+  (`git diff HEAD` empty for those paths); nothing staged.
+- **What Claude proposed and implemented:**
+  - *Pan/zoom/fit:* pure `lib/graph/viewport.ts` (wheel around the pointer, drag with a 4 px threshold,
+    two-pointer pinch, zoom 0.5-6x, centred button zoom, fit, clamping) plus buttons and keys
+    (+, -, 0, arrows) on the focusable canvas. A drag never selects the node under the pointer.
+  - *Filters:* pure `lib/graph/filters.ts` (type, source, risk signal, label search, connected-only);
+    include-amounts uses the existing `include_amounts` API parameter; all in the URL on the graph
+    page only; one filtered model feeds Graph and List; results line with shown/hidden counts.
+  - *Selection under filters:* a selected entity that is filtered out is explained with a
+    "Clear filters" recovery; the inspector marks connections to hidden entities.
+  - *Evidence deep links:* `/emails/<id>?ev=<snippet_id>&evq=<quote>`, resolved against that email's
+    own recorded relationships and extraction by `resolveRelationshipEvidence`; highlights only through
+    the existing `locateCitedQuote` (verified offsets); header evidence is quote-only; stale or forged
+    references show a notice and highlight nothing.
+  - *Show in graph:* link on extracted entities in the email detail, using the canonical key
+    (`/graph?node=<key>`, amount entities also set `amounts=1`); informative when the node is absent.
+  - *Visual:* parallel edges fan into curves; edge labels thin out unless zoomed/hovered/selected;
+    layout is width-aware; legend collapsed; sticky inspector on wide screens; 44 px targets below 900 px.
+- **What did not go right (kept for the record):**
+  1. Three 7B.1 tests broke after the UI change (a regex matched two nodes; edges are `<path>`, not
+     `<line>`); selectors/regexes were updated without weakening assertions.
+  2. Two of my own new tests had wrong expectations (an absolute-x pan assertion; assuming no mark exists
+     when AI citations legitimately render marks) and were corrected to test the real invariant.
+  3. The first browser script had app-independent bugs (non-serializable waits, a label-wrapped checkbox,
+     a selector matching the search icon, drag without `buttons:1`, a counter that included an earlier
+     request); each was fixed in the script, not the app.
+  4. **A real product defect found by reviewing screenshots:** the filter panel was open by default, so on
+     a 1440x900 desktop (and on mobile) it pushed the graph below the fold. It is now collapsed by default
+     and opens itself when a filter is active (+1 test); the browser suite was re-run afterwards.
+- **Executed validation (final tree):**
+  - typecheck 0 errors; `npm test`: server **28 files / 559 tests** (unchanged), web **16 files / 174
+    tests** (+57 over 7B.1: viewport 11, filters 11, graph investigation 30, claims 5); build exit 0
+    (JS 301 kB / 92.6 kB gz, CSS 39 kB).
+  - **Mutation check** (temporary, restored byte-identical by hash, run on the final code): click
+    suppression removed -> 1 test fails; URL evidence trusted without the record check -> 2; list
+    ignoring filters -> 1; connected-only ignored -> 3; zoom limit removed -> 2; hidden selection not
+    explained -> 1.
+  - **Real browser** (headless Edge via CDP, real Express backend, temporary SQLite database, no LLM
+    variables, explicit recorded replays of E001/E004/E007): **33 of 33 checks** (24 desktop at 1440x900,
+    8 mobile at 375x812 touch emulation, 1 health), re-run after the collapse-by-default fix. Console:
+    only the known `/favicon.ico` 404. **No POST** was sent during either session; health stayed
+    `configured:false`, `last_call_at:null`.
+- **Not verified:** no screen reader was used and no axe/automated audit was run (tooling not present);
+  real touch hardware was not used (CDP touch emulation only); only Edge/Chromium was exercised.
+- **Known limitations:** layouts remain basic (chains are diagonal lines; large graphs would need a
+  stronger layout); the graph is recomputed by the server per read; with filters open on desktop the
+  canvas moves down; edge labels can still collide at 100% in dense regions (zooming resolves them);
+  the E004/E009 "automatic checks only" flow is not implemented (7B.3).
+- **7B.3 safety preparation (analysis only, nothing implemented, no live endpoint called):** see D78.
+- **Time:** total development time was not measured.
+- **Next:** independent review; nothing committed or pushed.
+
+
+### 2026-10-11 — Phase 7B.3: safe automatic checks and graph integration (implemented, **uncommitted**; awaiting review)
+
+- **Authorization:** the operator authorized 7B.3 (implementation, tests, factual documentation): no
+  commit/stage/push, no provider calls, no fixture or seed changes, no prompt or risk-rule changes, no
+  new dependency, no Phase 8/9. 7B.1 and 7B.2 stayed uncommitted and were preserved (HEAD `a38b31c`,
+  `origin/main` identical, branch `main`, nothing staged).
+- **Preflight:** HEAD/origin verified; recorded fixtures byte-identical to HEAD (zero diff) before and
+  after; seed unchanged; processing architecture, queue (`isActive`), storage invariants and the
+  existing reprocess route read before implementing. Finding that shaped the design: risk indicators and
+  cross-email findings are computed at read time from stored emails, so the E004 comparison does not
+  depend on any analysis record; what an analysis record adds to the graph is header-derived people.
+- **What Claude proposed and implemented (following the 7B.2 recommendation D78):**
+  - `server/src/analysis/automaticChecks.ts`: a rules-only service whose only collaborators are a
+    repository and an `isActive` predicate; no LLM client parameter, field or import.
+  - `POST /api/emails/:id/automatic-checks` in `api/app.ts`; additive shared types
+    (`AutomaticChecksResponse`, `AUTOMATIC_CHECKS_STAGE_KIND`, `isAutomaticChecksRun`,
+    optional `ProcessingSummary.automatic_checks_only`).
+  - Web: client method; a "Run automatic checks" action (only where there is no live AI and no
+    recording), wording "Automatic checks only"; graph header counts rules-only messages separately.
+- **Decisions on the contract (details in D79-D84):** reuse the existing `degraded` status with
+  `rules` provenance (no new status); synchronous 200; `409` for complete / queued-or-running /
+  AI extraction present; an already rules-only record answers 200 `unchanged`.
+- **E009 outcome (real seed, real rules engine, no AI):** degraded, provenance rules, deterministic
+  extraction, no assessment, risk "Not assessed". The graph gained only header-derived people from E009;
+  the sender `billing@northgate-suppliers.com` became ONE node with source messages E004 and E009
+  (identical verified address). No relationship, account or amount node was created for E009 (those
+  come only from validated AI assessments), so the 6621 -> 9902 account change is NOT drawn in the graph.
+  It remains in the E004 detail comparison (read-time finding): previous account 6621, later account
+  9902, invoice $13,900 -> $47,300, unchanged routing observation; no accusation is made.
+- **What did not go right (kept for the record):**
+  1. All 17 new server tests passed on their first run, which proves nothing about their sensitivity;
+     mutation checks were run to show they can fail (below).
+  2. My first web test for the graph asserted that "AI-identified" appears nowhere, which is wrong (it is
+     a filter label); scoped to the inspector. A typed test fixture also failed typecheck; fixed.
+  3. The first browser run exposed script defects, not app defects: a quoting error in a selector
+     aborted the desktop section, and selectors were not scoped to the detail pane although the inbox
+     list on the same page legitimately contains recorded "AI-assessed" and "no risk found" rows.
+  4. A chained stack start left duplicate processes (EADDRINUSE, stale database); stacks were stopped and
+     restarted from empty databases before the final run.
+  5. A copy defect was found in the E009 screenshot: the evidence empty state still said "has not been
+     analyzed" after automatic checks had run; it now says automatic checks found nothing and that no AI
+     analysis was performed.
+- **Executed validation (final tree):**
+  - typecheck 0 errors; `npm test`: server **29 files / 576 tests** (+17), web **17 files / 182
+    tests** (+8); build exit 0 (JS 303 kB / 93 kB gz).
+  - **Mutation checks** (temporary, restored byte-identical by hash): complete analysis unprotected -> 1
+    test fails; AI extraction unprotected -> 1; busy email not refused -> 1; idempotency removed -> 2;
+    provenance `recorded` -> 3; provider-client import added to the module -> 2; route also enqueues
+    the AI pipeline -> 9; UI button calls reprocess -> 2; UI labels a rules-only run as AI -> 1.
+  - **Real browser** (headless Edge via CDP; isolated backend, new SQLite database; explicit recorded
+    replays of E001/E004/E007): **34 of 34 checks** (20 desktop, 4 mobile at 375 px touch emulation,
+    2 no-key stack health/network, 6 live-configured stack, 2 setup). Console: only the known
+    `/favicon.ico` 404. The only POST sent by the browser was `/automatic-checks`.
+  - **Live-configured stack:** a second backend with a key set whose provider URL was a loopback counter.
+    Automatic checks on E009, E004 and E010 produced 200 / rules, with **0** requests at the counter and
+    no socket opened to it; as a control, an AI reprocess of E001 on the same stack DID hit the counter
+    (so the zero is detectable). The only thing "sent" was that seed message to 127.0.0.1; the
+    process-level guard logged no non-loopback connection or DNS lookup. No external LLM was contacted.
+- **Residual limits:** see D84. **Time:** not measured.
+- **Next:** independent review; nothing committed or pushed.
+
+
+### 2026-10-11 — Phase 7C: final acceptance audit (read-only; findings recorded here)
+
+- **Scope:** read-only audit of the pending 7B.1-7B.3 work; no repository file was edited. Evidence
+  (probes, screenshots) was kept outside the repository.
+- **Findings (all later addressed in 7D.3/7E unless stated):**
+  1. **Retry budget (Medium):** an automatic-checks run counts in `runs.length` and therefore against
+     `ANALYSIS_MAX_RUNS`. Measured: with `maxRuns=1` one automatic run makes the next plain AI
+     reprocess return 409 `max_runs_reached`; with the default 3, automatic + two failed AI attempts
+     exhaust the allowance one attempt early. At most one run per message was added (the operation is
+     idempotent).
+  2. **Cross-origin POST (Medium, pre-existing, not introduced by Phase 7):** reproduced with a fake
+     provider: a `text/plain` POST from an untrusted origin to `/reprocess` answered 202 and made one
+     provider call. CORS withholds the response only.
+  3. **UI/server mismatch (Low-Medium):** a `failed` record may hold an AI extraction; the UI offered
+     automatic checks and the server correctly answered 409.
+  4. **Mobile (Medium):** after selecting a node the inspector sat at y=985 in an 812 px viewport with
+     no feedback.
+  5. **Touch targets (Low-Medium):** the Graph/List toggle was 34 px and inline "Also in" links 30x19
+     px. The 7B.2 entry and D71/D77 state "44 px targets"; that claim was not accurate for these
+     elements. It is left as written in those entries and corrected here.
+  6. Smaller items: "1 relationships", an evidence empty state that still said "has not been analyzed"
+     after automatic checks, map controls overlapping the top node on mobile.
+- **Security assessment (stated limits):** the automatic-checks dependency closure contained no provider
+  client, no network primitive and no environment access; completed-analysis protection, idempotency and
+  concurrency held. The guarantee is structural and tested, not a sandbox.
+- **Validation at that point:** typecheck 0 errors; server 29 files / 576 tests; web 17 files / 182
+  tests; build exit 0; fixtures and seed unchanged.
+- **Time:** not measured.
+
+### 2026-10-11 — Phase 7D.1: product design review (design only; no implementation)
+
+- **Scope:** a design audit and redesign blueprint; no repository file was edited. It critiqued the 7B
+  graph from real screenshots (tiny labels, the largest area given to the weakest data, the entity-level
+  risk badge reading as a verdict, no investigative starting point, an off-screen inspector on mobile),
+  proposed three concepts and recommended a hybrid of a relationship-focused canvas and an evidence
+  ledger inside the existing Inbox shell, with risk kept as a property of messages.
+- **Outcome:** the operator supplied a visual reference and authorized implementation in 7D.3. Open
+  items it raised (an API role field for sender/recipient, staging against the time budget) are
+  recorded in D87 and D96.
+
+### 2026-10-11 — Phase 7D.3: spatial knowledge-graph redesign (implemented, **uncommitted**; awaiting review)
+
+- **Authorization:** the operator authorized 7D.3 (implementation, tests, factual documentation) against
+  the approved reference image: no commit/stage/push, no provider calls, no fixture/seed/prompt/rule
+  changes, no new dependency, no Phase 7E/8/9. HEAD `a38b31c` unchanged; nothing staged.
+- **Reference image (inspected before coding):** warm off-white application, navy header, white
+  navigator and inspector, indigo accents, three zones (navigator | spatial canvas | contextual
+  inspector), floating layered slabs for entities with soft contact shadows, curved directional
+  relationships with labels, a message-reference chip group, an "evidence-based invoice comparison" card
+  ("not proof of fraud") and a primary "Open original email" button.
+- **What was adapted, and what was not (honesty about the image):**
+  - Adapted: the three-zone layout; layered, floating entity surfaces (an underlay sheet, stacked
+    shadows, lift on selection); curved connectors with label pills; a highlight that travels along the
+    selected relationship's real path; message-reference chips (E001, E004, ...); the comparison card with
+    6621 -> 9902, $13,900 -> $47,300 and the unchanged-routing note, wording kept at "not proof of fraud";
+    the primary "Open original email" action; evidence excerpts in the inspector.
+  - Not reproduced because the data cannot honestly support it: the lock icon on an account (implies a
+    security meaning that is not in the data); a connector from the comparison card to the graph (the
+    comparison is a read-time finding of stored messages, not an extracted relationship, so it is drawn
+    below the canvas and labelled "Not a graph relationship"); the "Email identity" panel presented as
+    disconnected identities (replaced by a labelled "Not connected" collection of the real entities that
+    have no relationship); decorative glow and a strong 3D tilt.
+- **What Claude implemented:**
+  - Pure layout `lib/graph/spatial.ts`: layered by relationship direction, barycentre ordering,
+    parallel edges fanned, detours for long or cyclic edges, labels slid along their curves to avoid
+    cards and each other, a deterministic fit; entities without a relationship are returned separately.
+  - Pure `lib/graph/ledger.ts` (relationships ordered by their source messages' risk; mailbox summary
+    from the real list) and `useFindings` (cross-email findings read from each message's own record).
+  - Components: `EntityNode` (HTML surface), `GraphCanvas` (HTML cards + SVG paths in one fitted
+    layer), `GraphPanels` (findings strip, Not-connected collection, summary, legend),
+    `NodeInspector` (start panel, entity, relationship), navigator in `GraphPage`, mobile tabs with a
+    full-screen details step. New route state: `edge` (selected relationship) and `tab`.
+  - Relationships are now selectable (their own inspector with sentence, exact quote, source message and
+    "Show passage in message"); the start state shows a real featured relationship with its cited passage.
+- **Not changed:** server and shared code, fixtures, seed, prompts, risk rules. The Phase 7E items remain
+  open and untouched: cross-origin state-changing POST protection, the AI retry budget consumed by an
+  automatic-checks run, and offering automatic checks for a failed record that holds an AI extraction.
+- **What did not go right (kept for the record):**
+  1. The selected relationship's label was unreadable (dark text on the indigo selection) because a hover
+     rule outranked the selected rule; found by looking at the screenshot, not by a test; fixed.
+  2. On a phone the three relationship labels overlapped; the first de-collision attempt still failed two
+     layout tests (a label on a card in a cycle, labels touching on mobile). Fixed with detour arcs for
+     long/cyclic edges, a taller layer gap and denser candidate positions along each curve.
+  3. At 320 px the Filters button was clipped; found by the overflow probe, fixed (wrapping filter bar).
+  4. The graph used to drop back to a skeleton whenever the message list finished loading, because the
+     refresh key was part of the resource's dependencies (a pre-existing behaviour surfaced by the new
+     tests). It now re-reads in the background and keeps what is on screen.
+  5. One ranking mutation survived because the test ids happened to sort in risk order; the tests were
+     made discriminating and the mutation then failed 2 tests.
+  6. Several 7B tests asserted the old SVG structure (`svg g[data-transform]`, shapes in `<text>`);
+     they were updated to the new structure without weakening what they protect.
+- **Executed validation (final tree):**
+  - typecheck 0 errors; `npm test`: server **29 files / 576 tests** (unchanged), web **20 files / 212
+    tests** (+30: spatial 13, ledger 6, workspace 11); build exit 0 (JS 332 kB / 101 kB gz, CSS 57 kB).
+  - **Mutation checks** (temporary, restored byte-identical): label avoidance removed -> 1 fails;
+    unconnected entities placed among connected -> 17; direction ignored in layering -> 4; ranking not by
+    risk -> 2 (after the test fix); narrow-screen details step removed -> 3; relationship label no longer
+    selects -> 1; evidence link loses its snippet -> 3.
+  - **Real browser** (headless Edge via CDP, isolated no-key backend with temporary database, recorded
+    E001/E004/E007 replays and rules-only E009): desktop 1440x900, **17 of 17** checks: layout
+    (no overlaps measured in the browser, names >= 13 px effective, canvas starts at y <= 340), the full
+    journey (select Northgate, source message with risk badge, select the transfer relationship, exact
+    quote, verified passage highlighted in E004, comparison, Back keeps the selection, Open original email),
+    List parity (11 + 3), URL-persisted filter, keyboard select/clear, wheel zoom and drag without
+    selection, reduced motion, RTL, no POST. Mobile 375 / 320 / 768: no horizontal overflow, details open
+    at the top after a tap, Back restores the map. Console: only the known `/favicon.ico` 404.
+  - Fixtures and seed byte-identical; no provider call (health stayed `configured:false`).
+- **Known limitations:** true 3D was not used (see D90); layouts of very dense components are bounded
+  but crossings are not minimised beyond the barycentre pass; the entity-level message-risk letter still
+  cannot tell a sender from a recipient (needs a contract extension, an open decision from 7D.1); no
+  screen-reader run or axe audit; touch was emulated, not tested on a device; only Chromium/Edge was
+  exercised; relationship labels on a phone are 28 px high scaled by the fit (the tap area is enlarged
+  but is not guaranteed to reach 44 px when the map is scaled below 100%).
+- **Time:** total development time was not measured.
+- **Next:** independent visual review; nothing committed or pushed.
+
+
+### 2026-10-11 — Phase 7E: security hardening, correctness and final copy (implemented, **uncommitted**; awaiting review)
+
+- **Authorization:** the operator authorized 7E (implementation, tests, factual documentation): no
+  commit/stage/push, no provider calls, no fixture/seed/prompt/schema/rule changes, no new dependency,
+  no graph redesign, no Phase 8/9. HEAD `a38b31c` unchanged; nothing staged. The port-3001 process was not
+  touched.
+- **Preflight:** branch/HEAD verified; pending work present; fixtures and seed byte-identical; the
+  state-changing routes enumerated from the router (three): `POST /api/emails` (paste and upload),
+  `POST /api/emails/:id/reprocess`, `POST /api/emails/:id/automatic-checks`.
+- **P0 — the vulnerability (found in the 7C audit and reproduced):** a cross-origin `text/plain` POST
+  to `/reprocess` from an untrusted page was delivered and enqueued AI work (202, one provider call).
+  CORS only withholds the response; it was never a boundary for side effects.
+  **Fix:** `api/originGuard.ts`, mounted before the body parser and every route: an untrusted
+  `Origin` (including `null` and a DNS-rebinding page whose Origin equals an untrusted Host) is refused
+  with 403 `origin_not_allowed`; a request without Origin is allowed unless the browser marks it
+  `Sec-Fetch-Site: cross-site|same-site`; a state-changing request may carry no body or an
+  `application/json` body (multipart only on the upload route), anything else is 415. Content type
+  cannot be used to bypass the origin check, and the origin check does not depend on CORS headers.
+- **P1 — retry budget:** an automatic-checks run was a run in `runs` and counted against
+  `ANALYSIS_MAX_RUNS`. `aiAttempts(runs)` now counts every run except one explicitly marked as an
+  automatic-checks request; it is used by `enqueue`, restart recovery, the background retry and
+  `can_reprocess`. `run_count` and the full history are unchanged; historical unmarked degraded runs
+  still count; no migration.
+- **P1 — eligibility:** the server reports `automatic_checks_available` (shared
+  `canRunAutomaticChecks`, mirroring its own refusals); the action is shown only when true. A 409 race
+  refreshes the page and says nothing was changed.
+- **P2 — header wording (approved text only):** "Recorded AI Replay" with the explanation and the
+  live-LLM prompt, shown only when no live model is configured and recordings exist. No README or guide
+  exists in the repository, so "View LLM Setup Guide" is non-clickable text with a note until a target is
+  set in `lib/docs.ts`.
+- **P2 — minimal UX:** singular/plural in the filter result line; touch size of "Also in" links on
+  narrow screens; recovery wording after a 409. The graph layout, styling and animations were not changed.
+- **What did not go right (kept for the record):**
+  1. My first origin rule accepted a same-origin request by comparing `Origin` with `Host`. All unit
+     tests passed, but the real browser run showed the in-app "Run automatic checks" button failing with
+     403 behind the Vite dev proxy, because the proxy sends the TARGET as Host. The dev-proxy case is
+     therefore covered by the allow-list (the default `CORS_ORIGIN` includes the default Vite origins
+     5173), not by the Host rule; any other dev port must be added to `CORS_ORIGIN`. I had also named
+     a unit test after the dev proxy that actually tested direct same-origin access; renamed.
+  2. The 7D.3 demo stack used Vite on port 5199, which is not in the default list; it was restarted with
+     `CORS_ORIGIN` including it (the documented setting).
+  3. Two web tests needed `findAllByText` (the status text legitimately appears twice).
+- **Executed validation (final tree):**
+  - typecheck 0 errors; `npm test`: server **31 files / 600 tests** (+24: origin 14, retry budget 10),
+    web **21 files / 224 tests** (+12); build exit 0 (JS 335 kB / 102 kB gz, CSS 58 kB).
+  - **Mutation checks** (temporary, restored byte-identical), 10 of 10 caught: guard not mounted -> 7
+    fail; untrusted Origin accepted -> 4; rebinding host check removed -> 1; content types unrestricted
+    -> 2; cross-site marker ignored -> 1; enqueue/`can_reprocess`/recovery/background retry counting
+    automatic runs -> 3 / 1 / 1 / 1; availability ignoring a held AI extraction -> 1.
+  - **Real browser** (headless Edge, isolated backends, temporary databases): a real attack page on
+    another origin sent four simple cross-origin POSTs (reprocess, forced reprocess, automatic checks,
+    paste with `analyze:true`) to a live-configured backend whose provider is a loopback counter: all
+    four answered 403, no email stored, no record changed, **0** provider requests; a control (trusted
+    no-Origin reprocess on the same stack) reached the counter. In-app actions through the dev proxy
+    (default port 5173 and the listed 5199) answered 200. Header wording, panel, non-clickable guide
+    label, E004/E009 relationship and the graph design verified; offline replay of E001/E004/E007 and
+    rules-only E009 through the real endpoints; no external connection (guard log).
+  - Fixtures and seed byte-identical; secret scan clean.
+- **Unresolved / residual:**
+  - There is still no authentication or authorization: any non-browser client that can reach the port
+    can call every route. This work removes the browser-mediated attack only.
+  - A page served from an allow-listed origin, or malicious software running as the same user, is
+    trusted by this policy.
+  - `MAX_RUN_LOGS` (10) still bounds the stored history; AI attempts older than the last 10 runs are
+    no longer counted, as before.
+  - The setup-guide target does not exist yet (Phase 8).
+- **Time:** total development time was not measured.
+- **Next:** independent review; nothing committed or pushed.
+
+
+### 2026-10-11 — Phase 7 final commit gate
+
+- **Authorization:** the operator authorized validating, committing and pushing the existing Phase 7
+  work to the private `origin/main`, with no new feature work. No Groq call, no new recording, no
+  fixture or seed change, no new dependency.
+- **Pre-commit review:** branch `main`; remote `SaadAmaria/mail-risk-intelligence` (private);
+  `HEAD`, `origin/main` and the remote ref all `a38b31c`; nothing staged. The complete combined
+  change set was reviewed as one: 21 modified and 35 new files, all source, test, stylesheet or
+  documentation. No credentials, temporary databases, screenshots, build output or environment files
+  are among them (`.env`, `web/dist`, `server/data` and the `node_modules` folders are ignored).
+  The only edit made at the gate was documentation: this entry, the missing 7C and 7D.1 entries, and a
+  corrected comment in `.env.example` (the 7E guard means the dev origin must be in `CORS_ORIGIN`).
+- **Validation executed at the gate (not carried over):** typecheck 0 errors in all workspaces;
+  `npm test`: server 31 files / 600 tests, web 21 files / 224 tests; production build exit 0; the
+  security and replay subset (origin guard, retry budget, automatic checks, API security, replay): 5
+  files / 96 tests; `git diff --check` clean; fixtures and seed byte-identical to the baseline.
+- **Commit strategy:** one commit. The phases share rewritten files (router, inspector, claims, copy,
+  the API app and the stylesheet), so two commits would have required reconstructing intermediate
+  states that never existed or leaving a broken one.
+- **Headings above:** the entries for 7B.1-7E were written before this commit and are headed
+  "uncommitted"; they are left unchanged as a record of their time, and this entry supersedes that
+  status.
+- **Known limitations carried forward:** no authentication or authorization (the 7E guard removes the
+  browser-mediated attack only); a non-default dev origin must be added to `CORS_ORIGIN`; the
+  setup-guide target does not exist yet and the header's "View LLM Setup Guide" is non-clickable until
+  the README section is written in **Phase 8**; the sender/recipient role for entity risk marks needs an
+  API extension; the force-layout module is unused by the interface; no screen-reader or axe audit,
+  touch was emulated, only Chromium/Edge was exercised.
+- **Time:** total development time was not measured.
+
 
 ---
 
