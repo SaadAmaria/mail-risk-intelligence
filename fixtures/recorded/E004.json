@@ -1,0 +1,72 @@
+{
+  "format_version": 1,
+  "email": {
+    "id": "E004",
+    "content_hash": "9d84d5a5c98138591eafe31e590355968c139c365e3757139d7268e6dee31c2a"
+  },
+  "pipeline": {
+    "prompt_version": "extract-v1+risk-v1",
+    "extraction_schema_version": 1,
+    "risk_schema_version": 1
+  },
+  "capture": {
+    "captured_at": "2026-10-11T14:47:01.736Z",
+    "tool": "record-fixtures/2",
+    "provider_host": "api.groq.com",
+    "requested_model": "openai/gpt-oss-120b",
+    "attempt": 1,
+    "attempts_made": 1
+  },
+  "calls": [
+    {
+      "stage": "extraction",
+      "request_hash": "26803304fef995328daa60a0fe9824823074b935504723719e1f01b2d7b3eeda",
+      "content": "{\"summary\":\"The email from billing@northgate-suppliers.com to accounts-payable@arcline.com includes invoice #NS-4471 for $47,300 due in 10 days and informs that the banking provider has changed, providing new routing and account details, and asks to schedule payment and update records.\",\"facts\":{\"amounts\":[{\"value\":47300,\"currency\":\"USD\",\"context\":\"invoice amount\"},{\"value\":12400,\"currency\":\"USD\",\"context\":\"previous invoice NS-4102\"},{\"value\":13900,\"currency\":\"USD\",\"context\":\"previous invoice NS-4188\"}],\"dates\":[],\"references\":[{\"kind\":\"invoice\",\"value\":\"#NS-4471\",\"context\":\"current invoice\"},{\"kind\":\"invoice\",\"value\":\"NS-4102\",\"context\":\"previous invoice\"},{\"kind\":\"invoice\",\"value\":\"NS-4188\",\"context\":\"previous invoice\"},{\"kind\":\"routing\",\"value\":\"044000037\",\"context\":\"new payment account\"},{\"kind\":\"account\",\"value\":\"9902\",\"context\":\"new account ending\"},{\"kind\":\"account\",\"value\":\"6621\",\"context\":\"previous account ending\"}],\"attachments\":[{\"filename\":\"invoice_NS-4471.pdf\",\"summary\":\"Invoice #NS-4471 showing amount $47,300.00 and new payment account routing 044000037, account ending 9902\"}]},\"evidence_snippets\":[{\"text\":\"Invoice #NS-4471 for $47,300, due in 10 days\",\"where\":\"body\"},{\"text\":\"please use the new account details on the invoice going forward rather than the account on file\",\"where\":\"body\"},{\"text\":\"Northgate Suppliers Inc. Invoice #NS-4471. Amount due: $47,300.00\",\"where\":\"attachment\",\"filename\":\"invoice_NS-4471.pdf\"},{\"text\":\"Previous invoices (NS-4102, NS-4188) were $12,400 and $13,900 respectively to account ending 6621\",\"where\":\"attachment\",\"filename\":\"invoice_NS-4471.pdf\"},{\"text\":\"New payment account: routing 044000037, account ending 9902\",\"where\":\"attachment\",\"filename\":\"invoice_NS-4471.pdf\"}],\"notes\":[]}",
+      "finish_reason": "stop",
+      "response_model": "openai/gpt-oss-120b",
+      "usage": {
+        "prompt_tokens": 809,
+        "completion_tokens": 561,
+        "total_tokens": 1370,
+        "reasoning_tokens": 111
+      },
+      "latency_ms": 1972
+    },
+    {
+      "stage": "risk",
+      "request_hash": "5ab3ffa761b8cc80a0fb2c8874c600605733757f246c72c1e78c3bb79ebfcb28",
+      "content": "{\"risk\":{\"level\":\"medium\",\"rationale\":\"The email requests payment to a newly provided bank routing and account number, differing from prior details, which is a common indicator of a payment redirection fraud attempt. The change is presented as a legitimate update, creating suspicion of impersonation or phishing.\",\"tags\":[\"payment-redirect\",\"impersonation\",\"phishing\"],\"evidence\":[{\"snippet_id\":\"s2\",\"quote\":\"please use the new account details on the invoice going forward rather than the account on file\"}],\"confidence\":\"high\"},\"entities\":[{\"ref\":\"e1\",\"type\":\"organization\",\"name\":\"Northgate Suppliers Inc.\",\"attributes\":{}},{\"ref\":\"e2\",\"type\":\"organization\",\"name\":\"Arcline\",\"attributes\":{}},{\"ref\":\"e3\",\"type\":\"amount\",\"name\":\"$47,300\",\"attributes\":{}},{\"ref\":\"e4\",\"type\":\"account\",\"name\":\"account ending 9902\",\"attributes\":{}},{\"ref\":\"e5\",\"type\":\"account\",\"name\":\"routing 044000037\",\"attributes\":{}}],\"relationships\":[{\"from_ref\":\"e1\",\"predicate\":\"sent_email_to\",\"to_ref\":\"e2\",\"snippet_id\":\"s1\",\"quote\":\"Subject: Invoice #NS-4471 - please note updated payment details\"},{\"from_ref\":\"e1\",\"predicate\":\"requests_transfer_to\",\"to_ref\":\"e4\",\"snippet_id\":\"s3\",\"quote\":\"New payment account: routing 044000037, account ending 9902\"}]}",
+      "finish_reason": "stop",
+      "response_model": "openai/gpt-oss-120b",
+      "usage": {
+        "prompt_tokens": 1640,
+        "completion_tokens": 457,
+        "total_tokens": 2097,
+        "reasoning_tokens": 147
+      },
+      "latency_ms": 1312
+    }
+  ],
+  "result": {
+    "status": "complete",
+    "stages": [
+      {
+        "stage": "extraction",
+        "outcome": "ok",
+        "calls": 1,
+        "dropped_items": 0,
+        "error_kind": null
+      },
+      {
+        "stage": "risk",
+        "outcome": "ok",
+        "calls": 1,
+        "dropped_items": 0,
+        "error_kind": null
+      }
+    ],
+    "warnings_count": 0,
+    "digest": "344ff5b7e83179bc9bb5b85612c9cf118ca129c4488a8947b144654c3ccf2a39"
+  },
+  "integrity": "393aee2b3727134163ab530e29ce74cc805fccfc0e7307fa933e96ecb54acc03"
+}

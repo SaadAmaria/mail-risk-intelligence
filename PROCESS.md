@@ -869,6 +869,72 @@ authenticity.
   - Real Groq output has still never been recorded or replayed.
 - **Next:** independent review; a live recording needs its own explicit authorization.
 
+## 2026-10-11 — Phase 6 infrastructure commit and the E004 recording (factual note)
+
+- **Infrastructure commit:** `2f1a3c4d3233a7d01a0aa4a86d08b451566336d2`
+  (`feat(replay): add verified recorded AI analysis infrastructure`) was pushed to `origin/main`
+  on authorization: 29 files, 559 server and 75 web tests passing, local `HEAD`, `origin/main` and
+  `git ls-remote` matched, tree clean. It contained no recorded fixture.
+- **Authorization:** the operator authorized ONE real recording attempt for seed email E004 only
+  (`api.groq.com`, `openai/gpt-oss-120b`), including the existing bounded repair and transport-retry
+  behaviour, and no other email and no second attempt.
+- **Pre-flight (all passed before transmission):** branch `main`; `HEAD` == `origin/main`;
+  clean tree; seed file byte-identical to `HEAD`; `fixtures/recorded/` held only `.gitkeep`; host and
+  model matched; key present (never printed); no other recorder process; dry run listed E004 only.
+- **Execution:** the single command `npm run record -w server -- --ids E004 --send
+  --authorize-seed-transmission=1` was run exactly once (14:46:57Z to 14:47:01Z, exit 0). It was not
+  repeated.
+- **Provider statistics (from the run log and the fixture):** 2 completions (1 extraction, 1 risk),
+  both `finish_reason: stop`; 0 repair calls and 0 transport retries (each stage logged one HTTP
+  attempt, outcome `ok`); no rate-limit, timeout or truncation warnings. Tokens: extraction 809
+  prompt + 561 completion (111 reasoning), risk 1,640 + 457 (147 reasoning). Latency 1,972 ms and
+  1,312 ms.
+- **Result:** analysis `complete`. Agent A extraction validated (0 dropped items, 0 warnings);
+  Agent B assessment validated (0 dropped): level **medium**, confidence high, tags payment-redirect,
+  impersonation, phishing, one evidence quote ("please use the new account details on the invoice
+  going forward rather than the account on file") cited from snippet `s2`, 5 entities and 2
+  relationships, all grounded. Deterministic rules level: medium. Final aggregated view: medium,
+  basis `ai_and_rules`, no escalation, no disagreement.
+- **Cross-email findings are separate and rule-based:** `payment_account_changed` (account ending
+  6621 -> 9902, routing unchanged) and `invoice_amount_anomaly` (13,900 -> 47,300, 3.4x, heuristic),
+  both identity `consistent`. They do not depend on the recording.
+- **Fixture:** `fixtures/recorded/E004.json` (integrity `393aee2b…`) and
+  `fixtures/recorded/index.json`; capture `attempt 1 / attempts_made 1`, tool `record-fixtures/2`,
+  captured 2026-10-11T14:47:01.736Z. The recorder's own gate passed: replay into an isolated
+  database reproduced the capture digest (`344ff5b7…`), and the secret/path scan was clean.
+- **Independent verification (read-only, separate from the capture):** integrity, manifest, seed
+  content hash and prompt/schema versions recomputed and matching; two further replays through the
+  real pipeline equal each other and the stored digest; secret scan including the configured key value
+  and a prompt-text scan found nothing. A real-browser audit (headless Edge via the DevTools
+  protocol) against the real Express backend, a new SQLite database, the ten seed emails and the
+  genuine fixture, with no LLM variables and `.env` not loaded, passed **44 of 44 checks** (32
+  desktop, 12 mobile): explicit single replay (one POST), complete / recorded / medium, verified
+  evidence highlights equal to the API offsets, cross-email values, E009 still "Not assessed" with no
+  replay offered, persistence across reload and across a backend restart, no analysis started by reads.
+- **Evidence kept outside the repository** (not committed): one continuous desktop video
+  (1440x900, 49.88 s, .webm and .mp4), a separate mobile video (375x812, 19.64 s), nine screenshots
+  and the technical evidence files, in `%TEMP%\mail-risk-e004-replay-verification`. The videos are
+  real browser frames assembled in real time with no cuts or overlays; they were produced with the
+  DevTools screencast and FFmpeg because the Playwright library is not installed here.
+- **Outbound-connection observation and its limits:** an in-process guard (preloaded with
+  `NODE_OPTIONS`, no application change) saw **0 outbound connect attempts** from the backend during
+  the whole replay session; a positive control showed it blocks a non-loopback connect; at the end 0
+  non-loopback TCP connections were owned by the isolated processes. Limits: the guard is in-process,
+  not an OS firewall; the Vite proxy process was not guarded (checked at OS level only); a native addon
+  opening its own sockets would not be seen.
+- **Known issues, not fixed in this commit:** (1) on a message without a recording (E009) the
+  analysis card says "AI is not configured, so analysis will run automatic checks only", although no
+  action is offered and the next line correctly says "No recording exists for this message"; (2) the
+  app ships no favicon (one `GET /favicon.ico 404` console entry per session). Dev-only duplicate
+  GETs show as `ERR_ABORTED` because of React StrictMode.
+- **What the integrity check does and does not show:** it shows the files are internally consistent
+  and match the current message and pipeline. It does not prove that Groq produced the output;
+  anyone with write access to the repository could produce a consistent fixture.
+- **Scope of recorded data:** only E004 is recorded. The other nine seed emails, and any pasted or
+  uploaded message, have no recording and are never labelled AI-assessed.
+- **Time:** total development time was not measured.
+- **Next:** nothing further was run; no additional recording is authorized.
+
 
 ---
 

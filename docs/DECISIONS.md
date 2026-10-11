@@ -1378,6 +1378,34 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
 - **Verification (executed):** tests for first attempt, repeats 2 and 3, undeclared and
   too-low declared attempts, and the CLI guard.
 
+## D66. Accepted: one genuine, verified recording (E004) is committed
+
+- **Context:** after the replay infrastructure was reviewed and committed, the operator authorized a
+  single real recording for E004 only, then a separate independent replay audit.
+- **Selected:** commit `fixtures/recorded/E004.json` and `index.json` exactly as captured, with no
+  edits to the model output. Replay mode therefore works from a fresh clone without a key for E004
+  only.
+- **Alternatives considered:** recording all ten emails (not authorized; more provider exposure and
+  a larger review surface); re-running E004 until the result looked better (rejected: best-of-N
+  without disclosure; the fixture records attempt 1 of 1); hand-writing fixtures (rejected: would not
+  be genuine).
+- **Evidence (executed, see PROCESS.md):** 2 real completions, no repairs or retries, status
+  `complete`, AI medium / rules medium / final medium; digest reproduced by the recorder and again
+  independently; 44/44 browser checks; 0 observed outbound connects from the backend during replay.
+- **Limitations and risks:**
+  - A single capture says nothing about run-to-run variance of the model.
+  - The fixture is bound to the current prompts, parser and seed text (`extract-v1+risk-v1`); changing
+    any of them makes it stale and replay falls back to rules-only until it is re-recorded (which needs
+    authorization again).
+  - Integrity is consistency, not authorship.
+  - The model's cited evidence is attributed to a deterministic snippet (the model's own snippets
+    were contained in it), by existing design.
+  - Network-isolation evidence is process-level, not an OS firewall.
+- **Open items:** the E009 replay-mode wording and the missing favicon (low priority, not part of
+  this commit).
+- **Approval:** the human operator authorized the recording and approved documenting and committing
+  the accepted fixture.
+
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a
