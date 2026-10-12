@@ -113,12 +113,14 @@ provider unless `ANALYSIS_AUTOSTART=true`.
 
 ## Quick start
 
-Prerequisites: **Node 22.9 or newer** (Node 24 is what `.nvmrc` pins) and npm.
+Prerequisites: **Node 22.9 or newer** (Node 24 is what `.nvmrc` pins) and npm. On Windows, also
+see [Installation notes](#installation-notes): the SQLite module's install step uses Python and the
+Visual Studio C++ Build Tools, and a short clone path avoids a path-length failure.
 
 ```bash
 git clone https://github.com/SaadAmaria/mail-risk-intelligence.git
 cd mail-risk-intelligence
-npm install
+npm ci
 npm run dev
 ```
 
@@ -135,10 +137,38 @@ loaded into `server/data/mail-risk.db` (created on first run).
   `tsx` (`npm run dev:server`, or `npm run start -w server` without file watching); there is no
   separate compiled server bundle.
 
-These commands were verified from a fresh clone of the repository (install, build, start with no
-`.env`, seed load, replay of a recorded email, paste and `.eml` upload, graph and health
-endpoints, full test suites). Installing took seconds on that machine; a first run on yours may
-also build the native `better-sqlite3` module.
+The setup was verified from fresh clones of the repository. The first check used `npm install`
+(install, build, start with no `.env`, seed load, replay of a recorded email, paste and `.eml`
+upload, graph and health endpoints, full test suites). On 2026-10-12, `npm install` followed by
+`npm run dev` was checked again with a browser walk-through, and `npm ci` was verified separately.
+What those checks do not cover is listed below.
+
+### Installation notes
+
+- **`npm ci` (recommended) or `npm install`.** `npm ci` installs exactly the versions recorded in the
+  committed `package-lock.json` and never changes that file, so a reviewer gets the tested
+  dependency tree. `npm install` also works, but it may update `package-lock.json`. With npm 11, a
+  fresh `npm install` adds a `"hasInstallScript": true` line to the `better-sqlite3` entry, so the
+  clone then shows the lockfile as modified. That change is harmless, and
+  `git checkout package-lock.json` discards it.
+- **Native SQLite module (`better-sqlite3` 13.0.3).** The package ships prebuilt binaries for
+  Windows (x64, arm64), macOS and Linux (x64, arm64, glibc and musl). npm still runs the package's
+  `node-gyp rebuild` step during `npm ci` and `npm install`. When a prebuilt binary matches your
+  platform, that step compiles nothing, but on Windows it still runs Python and MSBuild. When no
+  compatible prebuilt binary is available, it compiles SQLite from source. If installation fails with
+  `node-gyp`, `gyp ERR!`, MSBuild or other native-compilation errors, check these prerequisites:
+  - Windows: Python 3, and the Microsoft Visual Studio C++ Build Tools ("Desktop development with
+    C++").
+  - macOS and Linux: Python 3, `make` and a C/C++ compiler (the Xcode Command Line Tools on macOS),
+    as node-gyp requires. These platforms were not tested for this project.
+- **Use a short path on Windows**, for example `C:\projects\mail-risk-intelligence`. In a deeply
+  nested folder the native build step can exceed the Windows 260-character path limit and fail with
+  an MSBuild "exceeds the OS max path limit" error. This happened during testing in a long temporary
+  path; the same clone installed normally from a short one.
+- **What was tested.** On 2026-10-12, `npm ci` (about 8 s, lockfile unchanged) and `npm install`
+  both succeeded from fresh clones on Windows 11 with Node 24.11.1 and npm 11.7.0, on a machine with
+  Python 3.14 and the Visual Studio 2022 Build Tools installed. Installation on a machine **without**
+  those tools has not been tested, and neither have macOS or Linux.
 
 ## The four analysis modes
 
