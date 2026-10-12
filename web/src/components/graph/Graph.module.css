@@ -1210,6 +1210,10 @@
 .secondaryButton:hover {
   background: var(--accent-soft);
 }
+/* A relationship the server flagged for review: same pill size, a dashed outline as the marker. */
+.pillReview {
+  border-style: dashed;
+}
 .recover {
   display: flex;
   gap: var(--space-2);

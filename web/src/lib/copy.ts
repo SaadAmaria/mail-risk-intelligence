@@ -6,6 +6,7 @@ import type {
   Provenance,
   ReplayStatus,
   RiskView,
+  StoredReadIssue,
 } from "@mri/shared";
 
 /**
@@ -157,8 +158,52 @@ export function tagLabel(tag: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-export function predicateLabel(p: string): string {
+/**
+ * Plain wording of a relationship type. An amount can only ever be the thing that is transferred
+ * (never the recipient), so "requests transfer to" reads "requests transfer of" when the target is
+ * an amount. The stored predicate is unchanged.
+ */
+export function predicateLabel(p: string, targetType?: string): string {
+  if (p === "requests_transfer_to" && targetType === "amount") return "requests transfer of";
   return p.replace(/_/g, " ");
+}
+
+/** What the evidence shows and what it does not: the type of a relationship is the AI's reading. */
+export const RELATIONSHIP_CAVEAT =
+  "The quote is checked word for word against the message. The relationship type is the AI's reading of that quote: code checks that the entities fit the type, not that the quote proves it.";
+
+/** Advisory review of a relationship (server heuristic). It qualifies the AI's reading; it is not a verdict. */
+export const REVIEW_FALLBACK = "It may not support the relationship type.";
+export const REVIEW_HEURISTIC = "This is an automatic heuristic, not a finding.";
+/** Spoken with a flagged relationship wherever only a short marker is visible. */
+export const REVIEW_SPOKEN = "an automatic check suggests the quote may not support this relationship type";
+
+/** Accessible name of a relationship, carrying its review status. */
+export function relationshipSpoken(sentence: string, review: boolean): string {
+  return review ? `${sentence}. Check quote: ${REVIEW_SPOKEN}` : sentence;
+}
+
+/** One sentence per stored list column that could not be read in full (nothing was filled in). */
+export function readIssueText(i: StoredReadIssue): string {
+  const n = i.dropped;
+  switch (i.field) {
+    case "to":
+      return i.unreadable
+        ? "The stored recipient list could not be read, so no recipients are shown."
+        : `${n} stored ${n === 1 ? "recipient" : "recipients"} could not be read and ${n === 1 ? "is" : "are"} not shown. The To line is incomplete.`;
+    case "cc":
+      return i.unreadable
+        ? "The stored Cc list could not be read, so no Cc addresses are shown."
+        : `${n} stored Cc ${n === 1 ? "address" : "addresses"} could not be read and ${n === 1 ? "is" : "are"} not shown. The Cc line is incomplete.`;
+    case "missing_headers":
+      return i.unreadable
+        ? "The stored list of missing headers could not be read."
+        : `${n} stored ${n === 1 ? "entry" : "entries"} in the list of missing headers could not be read.`;
+    case "warnings":
+      return i.unreadable
+        ? "The stored notes from reading the message could not be read."
+        : `${n} stored ${n === 1 ? "note" : "notes"} from reading the message could not be read.`;
+  }
 }
 
 /** Short explanation of replay mode, also used as the accessible description of the status. */

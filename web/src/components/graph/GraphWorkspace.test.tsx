@@ -190,6 +190,64 @@ describe("investigation workspace", () => {
   });
 });
 
+describe("relationship wording", () => {
+  it("states that the type is the AI reading of a verified quote, and words a transfer of an amount correctly", async () => {
+    graph = gGraph(
+      [
+        gNode("p:a", { type: "person", label: "James", key_basis: "email_scoped", email_ids: ["E001"] }),
+        gNode("m:x", { type: "amount", label: "$184,500", key_basis: "email_scoped", email_ids: ["E001"] }),
+      ],
+      [gEdge("p:a", "m:x", { id: "t1", predicate: "requests_transfer_to", email_ids: ["E001"], evidence: [{ email_id: "E001", snippet_id: "s1", quote: "wire $184,500" }] })],
+    );
+    go("/graph?amounts=1&edge=t1");
+    render(<App />);
+    await screen.findByText(/2 entities · 1 relationship/);
+    const panel = insp();
+    expect(within(panel).getByRole("heading", { level: 2 }).textContent).toBe("James requests transfer of $184,500");
+    expect(within(panel).getByText(/relationship type is the AI.s reading/)).toBeTruthy();
+    expect(document.querySelector('[data-edge-id="t1"]')!.textContent).toBe("requests transfer of");
+    expect(document.body.textContent).not.toMatch(/requests transfer to $184,500/);
+  });
+});
+
+describe("advisory review of a weakly supported relationship type", () => {
+  it("keeps the relationship, shows the quote as found, and asks the reader to check it (heuristic, not a verdict)", async () => {
+    graph = gGraph(
+      [gNode("o:n", { label: "Northgate", email_ids: ["E004"] }), gNode("o:a", { label: "Arcline", email_ids: ["E004"] })],
+      [
+        gEdge("o:n", "o:a", {
+          id: "t1",
+          predicate: "threatens",
+          email_ids: ["E004"],
+          review: true,
+          evidence: [
+            {
+              email_id: "E004",
+              snippet_id: "s1",
+              quote: "Subject: Invoice #NS-4471",
+              support: { participants: "none", order: "unknown", wording: "none_found", review: true, notes: ["The quote does not name either entity."] },
+            },
+          ],
+        }),
+      ],
+    );
+    go("/graph?edge=t1");
+    render(<App />);
+    await screen.findByText(/2 entities · 1 relationship/);
+    const panel = insp();
+    expect(within(panel).getByText("Subject: Invoice #NS-4471")).toBeTruthy();
+    expect(within(panel).getByText(/Quote found in message E004/)).toBeTruthy();
+    expect(within(panel).queryByText(/Verified quote/)).toBeNull();
+    const note = panel.querySelector('[data-review="true"]')!;
+    expect(note.textContent).toMatch(/Check this quote\./);
+    expect(note.textContent).toMatch(/does not name either entity/);
+    expect(note.textContent).toMatch(/heuristic, not a finding/);
+    const nav = screen.getByRole("navigation", { name: "Investigation navigator" });
+    expect(within(nav).getByText("Check quote")).toBeTruthy();
+    expect(document.querySelectorAll("path[marker-end]").length).toBe(1); // still drawn
+  });
+});
+
 describe("narrow screens", () => {
   beforeEach(() => viewport(false));
 

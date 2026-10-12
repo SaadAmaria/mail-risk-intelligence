@@ -1,5 +1,5 @@
 import type { AnalysisRecord, RunLog } from "./analysis";
-import type { HeaderField, MailboxAddress, NormalizedAttachment, SourceKind } from "./email";
+import type { HeaderField, MailboxAddress, NormalizedAttachment, SourceKind, StoredReadIssue } from "./email";
 import type { FinalRiskLevel, RiskView, RulesLevel } from "./risk";
 import type {
   AnalysisStatus,
@@ -80,12 +80,27 @@ export interface EmailDetailEntity {
   also_in: string[];
 }
 
+/**
+ * An advisory, read-time observation about how a cited quote relates to a relationship. It is a
+ * heuristic (English word lists, simple name matching) and is NOT verification of meaning.
+ */
+export interface RelationshipSupport {
+  participants: "both" | "source_only" | "target_only" | "none" | "header";
+  order: "source_first" | "target_first" | "unknown";
+  wording: "present" | "negated" | "none_found" | "not_applicable";
+  /** The reader should check the quote before relying on the relationship type. */
+  review: boolean;
+  notes: string[];
+}
+
 export interface EmailDetailRelationship {
   key: string;
   predicate: RelationshipPredicate;
   source: string;
   target: string;
-  evidence: { snippet_id: string; quote: string }[];
+  evidence: { snippet_id: string; quote: string; support?: RelationshipSupport }[];
+  /** Any citation is weakly related to the type (advisory). */
+  review?: boolean;
   also_in: string[];
 }
 
@@ -106,6 +121,8 @@ export interface EmailDetailResponse {
     warnings: string[];
     attachments: NormalizedAttachment[];
     created_at: string;
+    /** Stored list columns that could not be read in full; the lists above then are not complete. */
+    read_issues?: StoredReadIssue[];
   };
   processing: ProcessingSummary & { warnings: string[]; runs: RunLog[] };
   extraction: Extraction | null;
@@ -167,7 +184,9 @@ export interface GraphEdge {
   email_ids: string[];
   count: number;
   origin: "ai";
-  evidence: { email_id: string; snippet_id: string; quote: string }[];
+  evidence: { email_id: string; snippet_id: string; quote: string; support?: RelationshipSupport }[];
+  /** Any citation is weakly related to the type (advisory; the relationship is not removed). */
+  review?: boolean;
 }
 
 export interface GraphResponse {
@@ -179,6 +198,8 @@ export interface GraphResponse {
     edge_count: number;
     /** What the graph is built from, so a reader does not over-trust it. */
     basis: string;
+    /** Stored relationships left out because they are structurally impossible under current rules. */
+    excluded_relationships?: number;
   };
 }
 

@@ -1,5 +1,5 @@
 import type { EmailListItem } from "@mri/shared";
-import { predicateLabel } from "../../lib/copy";
+import { RELATIONSHIP_CAVEAT, predicateLabel } from "../../lib/copy";
 import { formatDay } from "../../lib/format";
 import { ORIGIN_LONG, RISK_CAVEAT, TYPE_LABEL, keyBasisText } from "../../lib/graph/labels";
 import type { RankedRelationship } from "../../lib/graph/ledger";
@@ -9,6 +9,8 @@ import { buildUrl, DEFAULT_ROUTE, evidenceHref } from "../../lib/router";
 import { Button, Chip, EmptyState } from "../ui";
 import { Icon } from "../Icon";
 import { Link } from "../Link";
+import { unattributedReview } from "../../lib/review";
+import { ReviewChip, ReviewNote } from "../ReviewNote";
 import { RiskBadge } from "../RiskBadge";
 import { TYPE_ICON } from "./EntityNode";
 import { FindingCompact, Legend } from "./GraphPanels";
@@ -47,17 +49,20 @@ function OpenOriginal({ emailId }: { emailId: string }) {
 
 /** The first relationship to review, with the exact cited passage, so the start state is already evidence. */
 function FeaturedRelationship({ r, onSelectEdge }: { r: RankedRelationship; onSelectEdge: (id: string) => void }) {
-  const ev = r.edge.evidence[0];
+  // When a citation is flagged, feature that one, so the advisory sits under the quote it is about.
+  const flagged = r.edge.evidence.find((e) => e.support?.review);
+  const ev = flagged ?? r.edge.evidence[0];
   return (
     <div className={s.featured}>
       <p className={s.startSentence}>
-        <strong>{r.source.label}</strong> {predicateLabel(r.edge.predicate)} <strong>{r.target.label}</strong>
+        <strong>{r.source.label}</strong> {predicateLabel(r.edge.predicate, r.target.type)} <strong>{r.target.label}</strong>
       </p>
       <p className={s.startMeta}>
         <RiskBadge level={r.risk} size="sm" />
         <span className={s.muted}>from {r.messages.map((m) => m.id).join(", ")}</span>
       </p>
       {ev && <blockquote className={s.quote}>{ev.quote}</blockquote>}
+      {flagged ? <ReviewNote notes={flagged.support!.notes} /> : unattributedReview(r.edge) && <ReviewNote notes={[]} />}
       <div className={s.featuredActions}>
         <button type="button" className={s.secondaryButton} onClick={() => onSelectEdge(r.edge.id)}>
           Open this relationship
@@ -125,13 +130,14 @@ export function StartPanel({
               <li key={r.edge.id}>
                 <button type="button" className={s.startRow} onClick={() => onSelectEdge(r.edge.id)}>
                   <span className={s.startSentence}>
-                    <strong>{r.source.label}</strong> {predicateLabel(r.edge.predicate)} <strong>{r.target.label}</strong>
+                    <strong>{r.source.label}</strong> {predicateLabel(r.edge.predicate, r.target.type)} <strong>{r.target.label}</strong>
                   </span>
                   <span className={s.startMeta}>
                     <RiskBadge level={r.risk} size="sm" />
                     <span className={s.muted}>
                       {r.messages.length === 1 ? `from ${r.messages[0]!.id}` : `from ${r.messages.map((m) => m.id).join(", ")}`}
                     </span>
+                    {r.edge.review && <ReviewChip />}
                   </span>
                 </button>
               </li>
@@ -297,6 +303,7 @@ export function NodeInspector({
           <h3 id="insp-conn" className={s.h3}>
             Relationships ({connections.length})
           </h3>
+          {connections.length > 0 && <p className={s.muted}>{RELATIONSHIP_CAVEAT}</p>}
           {connections.length === 0 ? (
             <p className={s.muted}>
               No relationships. This entity appears in the messages above, but no validated relationship connects it to another
@@ -314,7 +321,7 @@ export function NodeInspector({
                       </span>
                       <span>
                         {direction === "out" ? "" : "is "}
-                        <strong>{predicateLabel(edge.predicate)}</strong>
+                        <strong>{predicateLabel(edge.predicate, direction === "out" ? other?.type : node.type)}</strong>
                         {direction === "out" ? "" : " by"}
                       </span>{" "}
                       {other ? (
@@ -327,16 +334,18 @@ export function NodeInspector({
                       {hidden && <span className={s.muted}> (hidden by filters)</span>}
                       {edge.count > 1 && <span className={s.muted}> · seen {edge.count}×</span>}
                     </p>
+                    {unattributedReview(edge) && <ReviewNote notes={[]} />}
                     <ul className={s.plain}>
                       {edge.evidence.map((ev, i) => (
                         <li key={`${ev.email_id}-${ev.snippet_id}-${i}`}>
                           <blockquote className={s.quote}>{ev.quote}</blockquote>
                           <p className={s.muted}>
-                            Verified quote from message {ev.email_id}.{" "}
+                            Quote found in message {ev.email_id}.{" "}
                             <Link href={evidenceHref(ev.email_id, ev.snippet_id, ev.quote)} className={s.evidenceLink}>
                               Show passage in message
                             </Link>
                           </p>
+                          {ev.support?.review && <ReviewNote notes={ev.support.notes} />}
                         </li>
                       ))}
                     </ul>
@@ -412,7 +421,7 @@ export function EdgeInspector({
             <Icon name="link" size={14} /> Relationship
           </p>
           <h2 className={s.inspTitle}>
-            {source?.label ?? "Unknown entity"} {predicateLabel(edge.predicate)} {target?.label ?? "unknown entity"}
+            {source?.label ?? "Unknown entity"} {predicateLabel(edge.predicate, target?.type)} {target?.label ?? "unknown entity"}
           </h2>
           <div className={s.chips}>
             <Chip kind="ai">Found by AI assessment</Chip>
@@ -446,16 +455,19 @@ export function EdgeInspector({
           <h3 id="edge-ev" className={s.h3}>
             Evidence ({edge.evidence.length})
           </h3>
+          <p className={s.muted}>{RELATIONSHIP_CAVEAT}</p>
+          {unattributedReview(edge) && <ReviewNote notes={[]} />}
           <ul className={s.plain}>
             {edge.evidence.map((ev, i) => (
               <li key={`${ev.email_id}-${ev.snippet_id}-${i}`}>
                 <blockquote className={s.quote}>{ev.quote}</blockquote>
                 <p className={s.muted}>
-                  Verified quote from message {ev.email_id}.{" "}
+                  Quote found in message {ev.email_id}.{" "}
                   <Link href={evidenceHref(ev.email_id, ev.snippet_id, ev.quote)} className={s.evidenceLink}>
                     Show passage in message
                   </Link>
                 </p>
+                {ev.support?.review && <ReviewNote notes={ev.support.notes} />}
               </li>
             ))}
           </ul>

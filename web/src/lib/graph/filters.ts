@@ -82,6 +82,7 @@ export function applyFilters(full: GraphModel, f: GraphFilters): Filtered {
       count: e.count,
       origin: e.origin,
       evidence: e.evidence,
+      review: e.review,
     })),
     meta: full.meta,
   });

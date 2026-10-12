@@ -17,6 +17,8 @@ export interface ClientOptions {
   maxRetryAfterMs?: number;
   /** Called once per complete() with its final outcome (used for passive health reporting). */
   onResult?: (outcome: CallOutcome) => void;
+  /** Largest response body accepted, in bytes (a chat completion is far smaller). Default 1 MiB. */
+  maxResponseBytes?: number;
   // Injectable for deterministic tests.
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
@@ -43,7 +45,7 @@ export function parseDurationMs(value: string | null): number | null {
 }
 
 /**
- * OpenAI-compatible Chat Completions client (Groq, or a local Ollama `/v1`). One provider
+ * OpenAI-compatible Chat Completions client (exercised only with Groq). One provider
  * implementation; there is deliberately no automatic multi-provider fallback.
  *
  * Retries are bounded and only for transient conditions (timeout, network error, 408/409/425,
@@ -63,6 +65,7 @@ export class OpenAICompatClient implements LlmClient {
       backoffBaseMs: 500,
       maxBackoffMs: 8_000,
       maxRetryAfterMs: 20_000,
+      maxResponseBytes: 1_048_576,
       fetchImpl: globalThis.fetch.bind(globalThis),
       sleep: defaultSleep,
       random: Math.random,
@@ -160,35 +163,67 @@ export class OpenAICompatClient implements LlmClient {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (this.o.apiKey) headers.authorization = `Bearer ${this.o.apiKey}`;
 
+    // ONE deadline covers connecting, the response headers AND reading the body. It is enforced by
+    // racing, so a transport (or a stalled stream) that ignores the abort signal still cannot hold
+    // the single worker: the call fails as a retryable timeout and the body is cancelled.
     const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), this.o.timeoutMs);
     const started = this.o.now();
-    let res: Response;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        ctrl.abort();
+        reject(new LlmError("timeout", `Request timed out after ${this.o.timeoutMs} ms.`, { retryable: true }));
+      }, this.o.timeoutMs);
+    });
+    deadline.catch(() => undefined); // never an unhandled rejection when the call finishes first
+
+    let res: Response | undefined;
+    // The reader that holds the body's lock once reading starts: only it can cancel the stream.
+    const reading: { reader?: ReadableStreamDefaultReader<Uint8Array> } = {};
     try {
-      res = await this.o.fetchImpl(`${this.o.baseUrl}/chat/completions`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: ctrl.signal,
-      });
+      let text: string;
+      try {
+        res = await Promise.race([
+          this.o.fetchImpl(`${this.o.baseUrl}/chat/completions`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            signal: ctrl.signal,
+          }),
+          deadline,
+        ]);
+      } catch (err) {
+        if (err instanceof LlmError) throw err;
+        const aborted = ctrl.signal.aborted || (err as { name?: string })?.name === "AbortError";
+        throw aborted
+          ? new LlmError("timeout", `Request timed out after ${this.o.timeoutMs} ms.`, { retryable: true })
+          : new LlmError("network", "Network error contacting the LLM endpoint.", { retryable: true });
+      }
+
+      this.readRateLimitHeaders(res.headers);
+
+      try {
+        text = await Promise.race([readBounded(res, this.o.maxResponseBytes, reading), deadline]);
+      } catch (err) {
+        if (err instanceof LlmError) throw err;
+        const aborted = ctrl.signal.aborted || (err as { name?: string })?.name === "AbortError";
+        throw aborted
+          ? new LlmError("timeout", `Request timed out after ${this.o.timeoutMs} ms.`, { retryable: true })
+          : new LlmError("network", "Connection lost while reading the response.", { status: res.status, retryable: true });
+      }
+
+      return this.finish(res, text, started);
     } catch (err) {
-      const aborted = ctrl.signal.aborted || (err as { name?: string })?.name === "AbortError";
-      throw aborted
-        ? new LlmError("timeout", `Request timed out after ${this.o.timeoutMs} ms.`, { retryable: true })
-        : new LlmError("network", "Network error contacting the LLM endpoint.", { retryable: true });
+      // Release the body on every failure path, WITHOUT waiting: a stream whose cancel() never
+      // settles must not delay the original error or keep the worker.
+      releaseBody(res?.body, reading.reader);
+      throw err;
     } finally {
       clearTimeout(timer);
     }
+  }
 
-    this.readRateLimitHeaders(res.headers);
-
-    let text: string;
-    try {
-      text = await res.text();
-    } catch {
-      throw new LlmError("network", "Connection lost while reading the response.", { status: res.status, retryable: true });
-    }
-
+  private finish(res: Response, text: string, started: number): Omit<LlmResult, "attempts"> {
     if (!res.ok) throw this.httpError(res, text);
 
     let json: unknown;
@@ -247,6 +282,51 @@ export class OpenAICompatClient implements LlmClient {
     const transient = status === 408 || status === 409 || status === 425 || status >= 500;
     return new LlmError("http", `The endpoint returned HTTP ${status}${suffix}`, { status, retryable: transient });
   }
+}
+
+/**
+ * Cancel a body stream fire-and-forget. Never throws, never awaits, never leaves a rejection.
+ * Once reading has started the stream is locked to `reader`, and `body.cancel()` would only reject
+ * with a lock error without reaching the source, so the reader is the one cancelled.
+ */
+function releaseBody(body: ReadableStream<Uint8Array> | null | undefined, reader?: ReadableStreamDefaultReader<Uint8Array>): void {
+  if (!body && !reader) return;
+  try {
+    void Promise.resolve(reader ? reader.cancel() : body!.cancel()).catch(() => undefined);
+  } catch {
+    /* a non-standard stream whose cancel() throws synchronously */
+  }
+}
+
+/**
+ * Read a response body with a hard size cap. A body larger than `maxBytes` is a bad response (it
+ * is never buffered whole), so a misbehaving endpoint cannot exhaust memory.
+ */
+async function readBounded(
+  res: Response,
+  maxBytes: number,
+  reading: { reader?: ReadableStreamDefaultReader<Uint8Array> },
+): Promise<string> {
+  const tooBig = () => new LlmError("bad_response", "The response body was larger than the allowed size.", { status: res.status });
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw tooBig();
+  if (!res.body) {
+    const text = await res.text();
+    if (text.length > maxBytes) throw tooBig();
+    return text;
+  }
+  const reader = res.body.getReader();
+  reading.reader = reader;
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) throw tooBig(); // the caller cancels the reader without awaiting it
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }
 
 function parseUsage(raw: unknown): TokenUsage | null {

@@ -7,6 +7,7 @@ import type {
   GraphResponse,
   RelationshipPredicate,
 } from "@mri/shared";
+import { needsReview } from "../review";
 
 /**
  * The graph model: a pure, order-independent transformation of the API's `GraphResponse`.
@@ -43,6 +44,8 @@ export interface GraphEdgeModel {
   count: number;
   origin: GraphEdge["origin"];
   evidence: GraphEdge["evidence"];
+  /** The server advises checking a citation before relying on the relationship type. */
+  review: boolean;
 }
 
 export interface SourceInfo {
@@ -82,6 +85,7 @@ export function buildGraphModel(graph: GraphResponse): GraphModel {
     emailIds: [...e.email_ids].sort(),
     count: e.count,
     origin: e.origin,
+    review: needsReview(e),
     evidence: [...e.evidence].sort((a, b) =>
       a.email_id === b.email_id ? (a.snippet_id < b.snippet_id ? -1 : 1) : a.email_id < b.email_id ? -1 : 1,
     ),

@@ -288,7 +288,7 @@ export function computeSpatialLayout(model: GraphModel, opts: SpatialOptions = {
       const bow = detour ? -((orientation === "horizontal" ? a.h : a.w) * 0.75 + 36) : 0;
       const offset = (i - (g.length - 1) / 2) * 44 * flip + bow;
       const { d: path, pts } = connector(a, b, orientation, offset);
-      const label = predicateLabel(e.predicate);
+      const label = predicateLabel(e.predicate, model.nodeById.get(e.target)?.type);
       const labelW = Math.min(LABEL_MAX_W, Math.round(18 + label.length * LABEL_CHAR_W));
       const mid = at(pts, 0.5);
       curves.set(e.id, pts);

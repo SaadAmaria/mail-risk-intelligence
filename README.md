@@ -2,8 +2,9 @@
 
 A small full-stack tool for a (fictional) compliance team: emails and attachments land in a
 mailbox, two chained LLM agents extract structured facts and assess risk, and an evidence-first UI
-shows *who is involved, what they ask for, and which exact passage supports every finding*. A
-knowledge graph aggregates entities and relationships across messages.
+shows *who is involved, what they ask for, and the passage each AI finding cites*, with a clear
+label for what the code verified and what is the model's own reading. A knowledge graph aggregates
+entities and relationships across messages.
 
 > **Synthetic data only.** The ten seed emails in `mock_mailbox_data.json` are fictional and were
 > supplied with the assignment.
@@ -30,6 +31,7 @@ The screenshots are real captures of the running application in Recorded AI Repl
 9. [Environment configuration](#environment-configuration)
 10. [Supported inputs](#supported-inputs)
 11. [Knowledge graph and evidence grounding](#knowledge-graph-and-evidence-grounding)
+    (including [what is verified, and what is not](#what-is-verified-and-what-is-not))
 12. [Testing](#testing)
 13. [Security boundaries and limitations](#security-boundaries-and-limitations)
 14. [Engineering decisions and tradeoffs](#engineering-decisions-and-tradeoffs)
@@ -43,8 +45,11 @@ The screenshots are real captures of the running application in Recorded AI Repl
   uploading `.txt`, `.eml` or `.pdf` (same pipeline as the seed).
 - **Two chained agents**: Agent A extracts a source-grounded summary, facts and evidence snippets;
   Agent B assesses risk and extracts entities and relationships from Agent A's output only.
-- **Evidence first**: every AI finding cites a quote that the *code* locates and verifies in the
-  original message or attachment. A highlight is shown only where its position is proven.
+- **Evidence first**: an AI risk level above "none" must cite at least one quote, and every
+  entity-relationship cites one; the *code* locates each quote in the original message or
+  attachment and checks it word for word. (A "none" assessment has nothing to cite.) A highlight is shown only where its position is
+  proven. What the code does *not* prove is that the quote means what the AI says it means: see
+  [What is verified, and what is not](#what-is-verified-and-what-is-not).
 - **Honest states**: an unassessed message is never shown as safe; "No risk found" exists only
   for a message with a validated AI assessment.
 - **Cross-email checks**: for example, E004 is compared with the earlier E009 invoice (payment
@@ -63,7 +68,7 @@ The screenshots are real captures of the running application in Recorded AI Repl
 |---|---|
 | Frontend | React 18 + TypeScript, Vite, **CSS Modules** with a small design-token file (no UI library) |
 | Backend | Node ≥ 22.9 (see `.nvmrc`), Express 4, TypeScript (run with `tsx`) |
-| Storage | SQLite via `better-sqlite3` behind a repository interface (an in-memory twin is used in tests) |
+| Storage | SQLite via `better-sqlite3` behind a repository interface (an in-memory twin is used in most tests) |
 | Ingestion | `postal-mime` for `.eml`, `unpdf` for text-layer PDFs, `multer` for uploads |
 | Shared | an npm workspace (`shared/`) with the API types and zod schemas |
 | LLM | one OpenAI-compatible Chat Completions client (a plain `fetch` client, no SDK) |
@@ -159,7 +164,8 @@ provider requests are made in this mode.*
 
 - `fixtures/recorded/` holds recordings for E001 (CEO-style wire request, high), E004 (invoice with
   changed payment details, medium) and E007 (benign HR notice, no risk found). They were produced
-  by a genuine run of both agents against Groq, then sealed with integrity hashes
+  by a genuine run of both agents against Groq, using the operator's own Groq key at capture time
+  (replaying them needs no key), then sealed with integrity hashes
   (`fixtures/recorded/index.json`); the loader refuses a fixture whose hash, email content or
   schema version no longer matches.
 - Choose **Replay recorded analysis** on one of those messages. The recorded answer is run through
@@ -171,8 +177,10 @@ provider requests are made in this mode.*
 
 ## Live LLM setup
 
-Live analysis is optional. **You need your own API key**; none is included in this repository and
-none was used to produce what you see in replay mode. A free-tier Groq account may be enough
+Live analysis is optional. **You need your own API key**; none is included in this repository.
+(The replay recordings were captured once with the operator's own Groq key, as described above;
+replaying them uses no key. An earlier version of this sentence said no key was used to produce
+them, which contradicted that description and was wrong.) A free-tier Groq account may be enough
 for a handful of messages, but check Groq's current limits and terms yourself.
 
 1. Create an account at <https://console.groq.com> and create an API key there.
@@ -261,6 +269,11 @@ fall back to the default.
 Limits: 5 MB per upload, 200,000 characters kept per body or attachment, 30 PDF pages, a 15 s PDF
 read budget. Anything over a limit is truncated and flagged, or refused, never silently dropped.
 
+**What the AI reads is shorter than what is stored.** Agent A is sent at most the first 6,000
+characters of the body and the first 3,000 characters of each of up to four attachments
+(`DEFAULT_SEGMENT_LIMITS`); the clipping is recorded in the extraction notes. A "no risk found"
+result therefore covers only the text the model was shown, not necessarily every stored passage.
+
 ## Knowledge graph and evidence grounding
 
 The graph (`/graph`, `GET /api/graph`) is **derived at read time** from the stored analyses; it is
@@ -269,9 +282,24 @@ not a separate store.
 - **Nodes** come from validated AI assessments plus people read from message headers
   (labelled *Automatic*).
 - **Edges exist only where an AI assessment returned a relationship that passed validation**, and
-  each cites an exact quote. The graph does not infer, guess or complete relationships.
-- **People merge across messages only on an identical, verified e-mail address.** Names alone never
-  merge, so two people called "James" stay separate. A missed merge is preferred to a wrong one.
+  each cites a quote that was found in the message. The graph does not infer, guess or complete
+  relationships. The *type* of each relationship ("threatens", "requests transfer to", ...) is the
+  AI's reading of that quote; see the next section.
+- **People merge across messages only on an identical e-mail address that the message itself
+  ties to that person**: the name matches a header display name, or the text writes "Name
+  <address>", "Name (address)" or "Name at address". An address that merely appears somewhere in the
+  message, or that the AI attached to a name, is not enough. Names alone never merge, so two people
+  called "James" stay separate. The rules favour a missed merge over a wrong one, but they are
+  heuristics: a wrong merge is possible when a message itself states a misleading pairing.
+- **Organizations** that differ only by punctuation or the long form of the legal suffix merge
+  ("Acme Inc." = "ACME INCORPORATED"). If the data contains two different legal forms ("Acme Inc."
+  and "Acme LLC") they stay separate, and a bare "Acme" is not guessed to be either.
+- **Masked accounts** ("account ending 6621") are not identified by their last digits. They merge
+  across messages only when they belong to the same organization *and* are described identically
+  ("checking account ending 1234" with "checking account ending 1234"; a bare "account ending 6621"
+  with a bare one). A bare and a described mention, or two descriptions, stay apart. A complete
+  account number merges with the same number of the same organization. Because two accounts of one
+  owner can still be described identically, a wrong merge remains possible.
 - Entities with no relationship are shown in a separate "Not connected" collection, not hidden.
 - A risk letter on an entity describes the *messages* it appears in, not the entity itself.
 - The cross-email comparison (E004 vs E009) is a finding about stored messages and is shown beside
@@ -283,6 +311,42 @@ not a separate store.
 "Show passage in message" opens the email and highlights the cited text only when its position is
 verified against the original; otherwise the quote is shown without a highlight.
 
+### What is verified, and what is not
+
+| Claim | Established by | Strength |
+|---|---|---|
+| The quote appears in the message or attachment, at this position | Code (exact text match against the stored original) | **Proven** |
+| The entities named are in the message | Code (grounded in the extracted text, headers and facts) | **Proven** (presence, not meaning) |
+| The relationship type fits the kinds of entity it connects | Code (a table of allowed endpoint types; impossible ones are dropped, also when read from older stored analyses) | **Checked** |
+| The quote names the entities, in which order, and (for accusations) whether it contains wording of that kind and whether that wording is negated | Code, **read-time heuristic** (simple name matching and small English word lists) | **Advisory only**: it can flag "Check this quote"; it never removes a relationship and never proves one |
+| The quote *means* the relationship type, or the risk level is right | The AI model | **Model-asserted**; not verified by code and not scored for accuracy |
+| Two mentions are the same person, organization or account | Code (the conservative identity rules above) | **Checked, heuristic**; uncertain cases are kept apart, but a wrong merge is not excluded |
+
+There is no second model that re-reads the claim, so semantic support is the model's judgement.
+The English word lists are narrow and a threat in another language or in unusual phrasing is simply
+not recognised (it is kept and flagged, not dropped). The interface says "Quote found in message",
+never "verified relationship". The "Check this quote" advisory is shown, from the server's metadata,
+in these places: the message's "Relationships the AI cited" list; the evidence view opened from the
+graph; the graph's relationship inspector, entity inspector and featured "where to start"
+relationship (as a note); and the graph navigator, start list and Graph List (as a "Check quote"
+chip). On the canvas the relationship label carries it only in its accessible name and as a dashed
+outline; the visible label text is unchanged. A quote with its own advisory gets the note under that
+quote. A relationship flagged only as a whole (older stored payloads) gets one note for the
+relationship. These places are covered by tests, but the list is not a guarantee that no other
+view exists. A relationship without the advisory has **not** been proven; it only did not trip the
+heuristic.
+
+**Older stored analyses** are never rewritten. They are re-checked on read: a relationship that is
+structurally impossible under the current rules is left out of the graph and counted
+(`meta.excluded_relationships`), and every kept relationship is given the same advisory support
+note. A relationship accepted under looser, earlier rules but structurally possible stays visible.
+
+**Damaged stored records** do not take down the inbox, a message or the graph. A stored list that
+cannot be read in full (recipients, Cc, missing-header names, notes) keeps its readable entries and is
+reported on the message ("Some stored details could not be read"). A partial To or Cc line is marked
+incomplete, and a line where nothing survived says "Could not be read", never "No recipients listed".
+Nothing is filled in and nothing is written back.
+
 ## Testing
 
 ```bash
@@ -291,11 +355,21 @@ npm run typecheck   # all workspaces
 npm run build       # production build of the frontend
 ```
 
-At the time of writing: server 31 files / 600 tests, web 22 files / 231 tests, typecheck clean.
-Tests use scripted fake LLM clients and in-memory repositories; **no test contacts a provider**.
+Last executed **by the author** (2026-10-12, Phase 9D delta): server 38 files / 701 tests, web 24
+files / 281 tests, typecheck clean. The independent historical audit executed web 24 files / 281
+tests and server 31 files / 563 tests. It collected all 701 server tests but did not run the seven
+suites that write files (storage, seed, startup, analysis storage, analysis service, API recovery,
+replay), so "701 passing" is the author's result, not an independent one. Tests use scripted fake LLM clients; **no test contacts a provider**. Most server
+tests use the in-memory repository. Seven server test files use the real SQLite repository. Six of them use
+temporary database files (analysis service, analysis storage, API recovery, seed, startup, storage),
+and the corrupt-record tests use a `:memory:` SQLite database. Web tests stub `fetch` in jsdom.
 They cover ingestion, both agents' validation and failure paths, orchestration and restart
 recovery, risk aggregation, replay integrity, the HTTP API (including the origin guard), and the
-React views. Several suites use deliberate mutation checks recorded in `docs/DECISIONS.md`.
+React views. Several suites use deliberate mutation checks recorded in `docs/DECISIONS.md`. Those
+are the author's records; the independent audit reproduced only selected ones (cancellation,
+review-advisory rendering, filter metadata). One historical claim was corrected on 2026-10-12: the
+relationship-grounding tests "failing on HEAD" (D98) failed because the module they import did not
+exist yet, which is not a per-test regression result.
 
 Real-browser checks (headless Edge, desktop and 320–768 px) were run during development against an
 isolated backend; they are recorded in `PROCESS.md` but are not part of `npm test`.
@@ -351,7 +425,8 @@ The full records, with alternatives and verification, are in
 
 ## What I would improve with more time
 
-- Authentication, authorization and a deployable configuration.
+- Authentication, authorization and a deployable configuration (the assignment explicitly excludes
+  accounts, so this is a scope exemption, not a feature that was built).
 - OCR for scanned PDFs (not required by the assignment, and not offered today), and attachments beyond text/PDF.
 - A role (sender / recipient) on entities so message risk can be attributed more precisely.
 - A durable job queue and server-sent events instead of polling.
@@ -363,15 +438,48 @@ The full records, with alternatives and verification, are in
 
 ## Time spent
 
-Total focused development time was **not measured**, so no figure is given here. The assignment's
-5–6 hour guidance was not tracked against a clock; the work was organised as small authorised
-phases instead, and `PROCESS.md` records what was done, in what order, and what went wrong.
+**Estimated Project Duration:** Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production.
+
+This is the operator's approximate overall project-effort estimate, not a precisely measured duration.
+
+- **Not independently verified.** No time-tracking record exists, and nobody has checked the figure.
+- **The demo video has not been recorded yet.** It is planned. Its production time is part of the
+  overall estimate as *expected* effort, not work already done, and no video is delivered with this
+  repository.
+- **Precise focused time: not available.** It was never measured.
+- **Confirmed elapsed work** is therefore not a human-hours figure. The only recorded data is the
+  agent-session activity below, which measures something different.
+
+Agent-session activity, measured separately, is a **different quantity**. It comes from the local
+Claude Code transcripts (user and assistant events, timestamps in UTC; local time is UTC+3):
+
+| Period | Events | First to last event | Sum of gaps of at most 5 min | Sum of gaps of at most 10 min |
+|---|---:|---|---:|---:|
+| 2026-10-11 | 4,221 | 13:21–22:28 local (9.1 h span) | 6.9 h | 7.4 h |
+| 2026-10-12, until 16:32 local | 513 | 15:19–16:32 local (1.2 h span) | 0.6 h | 0.6 h |
+| Both days | 4,734 | two sittings, 17 h apart | 7.5 h | 8.0 h |
+
+These figures include unattended agent runs (test suites, browser checks) and waiting. They exclude
+the operator's own review and reading, the independent Codex audits, and any work in other tools.
+They are therefore neither evidence for nor against the overall estimate. Either way the scope grew beyond
+the 5–6 hour guidance because of the added phases (graph redesign, security hardening, audits).
+
+*Correction, 2026-10-12:* an earlier version of this section covered only 2026-10-11 and said 4,199
+events. A recount of the same window (to 19:25 UTC) gives 4,201; the hour figures were unchanged at
+the stated precision. The earlier sentence "cannot be reconstructed reliably" stays true for
+**measured** focused time; the estimate above was added because the brief asks for one. Its wording
+was set by the operator on 2026-10-12 (an earlier same-day draft said "about 8 hours of total
+personal involvement").
+
+`PROCESS.md` records what was done, in what order, and what went wrong.
 
 ## Further reading
 
 - [`PROCESS.md`](PROCESS.md): how the project was built with Claude Code: prompts, decisions,
   corrections, failures, security findings and design iterations, in chronological order.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): architectural decision records.
+- [`docs/AUDIT_CLOSURE.md`](docs/AUDIT_CLOSURE.md): the independent audit findings and what became of
+  each (fixed and tested, documented limitation, open).
 - [`docs/REQUIREMENTS_TRACEABILITY.md`](docs/REQUIREMENTS_TRACEABILITY.md): each assignment
   requirement mapped to its implementation, tests and limitations.
 - [`candidate_task_brief.md`](candidate_task_brief.md): the original assignment.

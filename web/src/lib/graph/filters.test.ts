@@ -101,3 +101,31 @@ describe("applyFilters", () => {
     ]);
   });
 });
+
+describe("filters keep each relationship's review metadata", () => {
+  const support = { participants: "none" as const, order: "unknown" as const, wording: "none_found" as const, review: true, notes: ["n"] };
+  const m = () =>
+    buildGraphModel(
+      gGraph(
+        [gNode("o:n", { label: "Northgate" }), gNode("o:a", { label: "Arcline" }), gNode("o:z", { label: "Zeta" })],
+        [
+          gEdge("o:n", "o:a", { id: "legacy", review: true }), // edge-level flag only, no per-quote metadata
+          gEdge("o:a", "o:z", { id: "quote", evidence: [{ email_id: "E004", snippet_id: "s9", quote: "q", support }] }),
+          gEdge("o:n", "o:z", { id: "clean" }),
+        ],
+      ),
+    );
+
+  it.each([
+    ["no filters", NO_FILTERS],
+    ["a search", { ...NO_FILTERS, q: "a" }],
+    ["connected only", { ...NO_FILTERS, connectedOnly: true }],
+  ])("%s: flags and per-quote support survive unchanged", (_n, f) => {
+    const out = applyFilters(m(), f).model;
+    const by = (id: string) => out.edgeById.get(id)!;
+    expect(by("legacy").review).toBe(true);
+    expect(by("quote").review).toBe(true);
+    expect(by("quote").evidence[0]!.support).toEqual(support);
+    expect(by("clean").review).toBe(false);
+  });
+});

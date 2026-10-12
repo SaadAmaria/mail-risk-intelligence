@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EmailDetailResponse, ReplayStatus, RiskIndicator } from "@mri/shared";
+import type { EmailDetailRelationship, EmailDetailResponse, ReplayStatus, RiskIndicator } from "@mri/shared";
 import { ApiRequestError, api } from "../lib/api";
 import { announce } from "../lib/announce";
 import { buildClaims, resolveRelationshipEvidence, type Claim, type SegmentRef } from "../lib/claims";
@@ -10,6 +10,8 @@ import {
   basisChip,
   basisLine,
   predicateLabel,
+  RELATIONSHIP_CAVEAT,
+  readIssueText,
   statusCopy,
   tagLabel,
   errorMessage,
@@ -17,10 +19,12 @@ import {
 import { formatAddresses, formatDateTime, pluralize, senderName } from "../lib/format";
 import { useResource, usePolling } from "../lib/hooks";
 import type { HighlightRange } from "../lib/highlight";
+import { needsReview, reviewNotes } from "../lib/review";
 import { buildUrl, DEFAULT_ROUTE, readEvidenceParams, useSearch } from "../lib/router";
 import { Comparison } from "./Comparison";
 import { Icon } from "./Icon";
 import { Link } from "./Link";
+import { ReviewNote } from "./ReviewNote";
 import { RiskBadge } from "./RiskBadge";
 import { SourceText } from "./SourceText";
 import { Button, Callout, Chip, EmptyState, Skeleton } from "./ui";
@@ -134,6 +138,10 @@ function Loaded({
   onChanged: () => void;
 }) {
   const { email, processing, risk, assessment, extraction } = detail;
+  // Stored list columns that could not be read in full: the lists shown are then not complete.
+  const readIssues = email.read_issues ?? [];
+  const toIssue = readIssues.some((i) => i.field === "to");
+  const ccIssue = readIssues.some((i) => i.field === "cc");
   // An evidence deep link (from the knowledge graph) is resolved against THIS message's own
   // record; nothing in the URL is trusted and no text is marked unless it verifies.
   const search = useSearch();
@@ -243,12 +251,18 @@ function Loaded({
             </div>
             <div>
               <dt>To</dt>
-              <dd>{email.to.length ? formatAddresses(email.to) : "No recipients listed"}</dd>
+              <dd>
+                {email.to.length ? formatAddresses(email.to) : toIssue ? "Could not be read" : "No recipients listed"}
+                {toIssue && email.to.length > 0 && <span className={s.muted}> (incomplete: some could not be read)</span>}
+              </dd>
             </div>
-            {email.cc.length > 0 && (
+            {(email.cc.length > 0 || ccIssue) && (
               <div>
                 <dt>Cc</dt>
-                <dd>{formatAddresses(email.cc)}</dd>
+                <dd>
+                  {email.cc.length ? formatAddresses(email.cc) : "Could not be read"}
+                  {ccIssue && email.cc.length > 0 && <span className={s.muted}> (incomplete: some could not be read)</span>}
+                </dd>
               </div>
             )}
             <div>
@@ -262,8 +276,20 @@ function Loaded({
               </div>
             )}
           </dl>
-          {(email.missing_headers.length > 0 || email.warnings.length > 0) && (
+          {(email.missing_headers.length > 0 || email.warnings.length > 0 || readIssues.length > 0) && (
             <div className={s.stack}>
+              {readIssues.length > 0 && (
+                <div data-testid="read-issues">
+                  <Callout tone="warn" icon="alert-circle" title="Some stored details could not be read">
+                    <ul className={s.plainList}>
+                      {readIssues.map((i) => (
+                        <li key={i.field}>{readIssueText(i)}</li>
+                      ))}
+                    </ul>
+                    <p>Nothing was filled in for them, and the stored record was not changed.</p>
+                  </Callout>
+                </div>
+              )}
               {email.missing_headers.length > 0 && (
                 <Callout tone="info" icon="info" title="Some headers were not in the source">
                   <p>Missing: {email.missing_headers.join(", ")}. Nothing has been filled in for them.</p>
@@ -359,7 +385,19 @@ function Loaded({
             <div className={s.group} data-testid="linked-evidence">
               <Callout tone="info" icon="link" title="Opened from the knowledge graph">
                 <p>
-                  This passage supports a relationship the AI recorded for this message.
+                  This passage was cited for {linked.citations.length === 1 ? "this AI-inferred relationship" : "these AI-inferred relationships"}:
+                </p>
+                <ul className={s.plainList}>
+                  {linked.citations.map((c) => (
+                    <li key={c.relationship.key}>
+                      <RelationshipSentence detail={detail} r={c.relationship} />
+                      {c.review && <ReviewNote notes={c.notes} />}
+                    </li>
+                  ))}
+                </ul>
+                <p>
+                  The quote was found word for word in this message; what the relationship means is the AI's reading of it, not
+                  something the code verified.
                   {linked.claim.target
                     ? " It is highlighted in the original message below."
                     : " Its exact position in the text could not be verified, so it is shown as a quote and nothing is highlighted."}
@@ -550,13 +588,16 @@ function Loaded({
             {detail.relationships.length > 0 && (
               <>
                 <h3 className={s.h3}>Relationships the AI cited</h3>
+                <p className={s.muted}>{RELATIONSHIP_CAVEAT}</p>
                 <ul className={s.plainList}>
                   {detail.relationships.map((r) => {
-                    const name = (k: string) => detail.entities.find((e) => e.key === k)?.display_name ?? k;
+                    // Show the flagged quote when there is one, so the note sits under the quote it is about.
+                    const shown = r.evidence.find((e) => e.support?.review) ?? r.evidence[0];
                     return (
-                      <li key={r.key}>
-                        <strong>{name(r.source)}</strong> {predicateLabel(r.predicate)} <strong>{name(r.target)}</strong>
-                        {r.evidence[0] && <q className={s.inlineQuote}>{r.evidence[0].quote}</q>}
+                      <li key={r.key} data-review={needsReview(r) ? "true" : undefined}>
+                        <RelationshipSentence detail={detail} r={r} />
+                        {shown && <q className={s.inlineQuote}>{shown.quote}</q>}
+                        {needsReview(r) && <ReviewNote notes={reviewNotes(r)} />}
                       </li>
                     );
                   })}
@@ -615,6 +656,16 @@ function Loaded({
         </section>
       </div>
     </article>
+  );
+}
+
+function RelationshipSentence({ detail, r }: { detail: EmailDetailResponse; r: EmailDetailRelationship }) {
+  const entity = (k: string) => detail.entities.find((e) => e.key === k);
+  return (
+    <>
+      <strong>{entity(r.source)?.display_name ?? r.source}</strong> {predicateLabel(r.predicate, entity(r.target)?.type)}{" "}
+      <strong>{entity(r.target)?.display_name ?? r.target}</strong>
+    </>
   );
 }
 

@@ -1,5 +1,6 @@
-import type { EmailDetailResponse } from "@mri/shared";
+import type { EmailDetailRelationship, EmailDetailResponse } from "@mri/shared";
 import { locateCitedQuote, isValidRange } from "./highlight";
+import { unattributedReview } from "./review";
 
 /**
  * A "claim" is one piece of evidence shown to the user, with where it came from and (only when
@@ -125,8 +126,15 @@ function evidenceTarget(
   return { segment: seg, start: ev.start, end: ev.end };
 }
 
+export interface LinkedCitation {
+  relationship: EmailDetailRelationship;
+  /** The server's advisory review of THIS quote for this relationship (never computed here). */
+  review: boolean;
+  notes: string[];
+}
+
 export type EvidenceLinkResult =
-  | { status: "ok"; claim: Claim }
+  | { status: "ok"; claim: Claim; citations: LinkedCitation[] }
   /** The reference cannot be tied to this record (never highlighted, never guessed). */
   | { status: "unavailable"; reason: "no_extraction" | "unknown_snippet" | "not_a_recorded_relationship" };
 
@@ -140,8 +148,15 @@ export type EvidenceLinkResult =
  * not verify, yields a claim with no target: the quote is shown, no text is marked.
  */
 export function resolveRelationshipEvidence(detail: EmailDetailResponse, snippetId: string, quote: string): EvidenceLinkResult {
-  const cited = detail.relationships.some((r) => r.evidence.some((e) => e.snippet_id === snippetId && e.quote === quote));
-  if (!cited) return { status: "unavailable", reason: "not_a_recorded_relationship" };
+  const citations: LinkedCitation[] = detail.relationships.flatMap((r) => {
+    const ev = r.evidence.find((e) => e.snippet_id === snippetId && e.quote === quote);
+    if (!ev) return [];
+    // This citation's own advisory where present; a relationship-level flag that no citation
+    // explains (legacy payload) as the fallback. Same rule as the graph inspectors.
+    const own = ev.support?.review === true;
+    return [{ relationship: r, review: own || unattributedReview(r), notes: own ? ev.support!.notes : [] }];
+  });
+  if (citations.length === 0) return { status: "unavailable", reason: "not_a_recorded_relationship" };
   if (!detail.extraction) return { status: "unavailable", reason: "no_extraction" };
   const snip = detail.extraction.evidence_snippets.find((s) => s.id === snippetId);
   if (!snip) return { status: "unavailable", reason: "unknown_snippet" };
@@ -155,6 +170,7 @@ export function resolveRelationshipEvidence(detail: EmailDetailResponse, snippet
   }
   return {
     status: "ok",
+    citations,
     claim: {
       id: `graph-${snippetId}`,
       group: "linked",

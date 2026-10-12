@@ -1,4 +1,5 @@
 import { RISK_LABEL, predicateLabel } from "../../lib/copy";
+import { ReviewChip } from "../ReviewNote";
 import { ORIGIN_LABEL, TYPE_SHORT } from "../../lib/graph/labels";
 import type { GraphModel } from "../../lib/graph/model";
 import s from "./Graph.module.css";
@@ -97,11 +98,12 @@ export function GraphList({
                   <td>
                     {onSelectEdge ? (
                       <button type="button" className={s.rowButton} onClick={() => onSelectEdge(e.id)}>
-                        {predicateLabel(e.predicate)}
+                        {predicateLabel(e.predicate, to.type)}
                       </button>
                     ) : (
-                      predicateLabel(e.predicate)
+                      predicateLabel(e.predicate, to.type)
                     )}
+                    {e.review && <> <ReviewChip /></>}
                   </td>
                   <td>
                     <button type="button" className={s.rowButton} onClick={() => onSelect(to.id)}>

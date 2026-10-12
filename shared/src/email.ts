@@ -64,12 +64,25 @@ export type NormalizedEmail = z.infer<typeof NormalizedEmail>;
 
 export type StoredAttachment = NormalizedAttachment & { id: number };
 
+/**
+ * A stored list column that could not be read back in full. Computed on read only (never stored):
+ * `unreadable` means the whole column was unusable; otherwise `dropped` malformed elements were left
+ * out and the remaining ones are shown. Nothing is filled in for what was lost.
+ */
+export interface StoredReadIssue {
+  field: "to" | "cc" | "missing_headers" | "warnings";
+  unreadable: boolean;
+  dropped: number;
+}
+
 export type StoredEmail = Omit<NormalizedEmail, "attachments"> & {
   id: string;
   content_hash: string;
   created_at: string;
   raw_source: string;
   attachments: StoredAttachment[];
+  /** Present only when a stored list column was partly or wholly unreadable. */
+  read_issues?: StoredReadIssue[];
 };
 
 // Machine-readable ingestion failure codes (surface in the API in Phase 4).

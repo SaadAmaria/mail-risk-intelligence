@@ -3,6 +3,7 @@
   min-width: 0;
 }
 .pillButton {
+  position: relative;
   cursor: pointer;
   font: inherit;
   font-size: var(--text-xs);
@@ -66,4 +67,11 @@
 .note {
   color: var(--ink-3);
   font-size: var(--text-xs);
+}
+
+/* A larger touch area without changing the approved appearance. */
+.pillButton::after {
+  content: "";
+  position: absolute;
+  inset: -8px -4px;
 }

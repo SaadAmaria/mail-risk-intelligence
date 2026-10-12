@@ -79,10 +79,10 @@ describe("person identity: only a verified e-mail address merges people across e
     expect(g.entities.filter((e) => e.display_name === "Jane Roe" || e.display_name === "Someone Else")).toHaveLength(2);
   });
 
-  it("trusts an address that appears in the email's evidence text, not only its headers", async () => {
+  it("trusts a name/address pair that the email's evidence text states, in two different messages", async () => {
     const repo = new MemoryRepository();
     const a = await mailWith(repo, "a@one.example", "Please contact Priya Nair at priya.nair@partner.example for access.");
-    const b = await mailWith(repo, "b@two.example", "Cc'ing priya.nair@partner.example as discussed.");
+    const b = await mailWith(repo, "b@two.example", "Copying Priya Nair (priya.nair@partner.example) as discussed.");
     const withSnippet = (e: StoredEmail, name: string) => {
       const rec = withEntities(e, [person("p", name, "priya.nair@partner.example")]);
       const text = e.body;
@@ -94,7 +94,7 @@ describe("person identity: only a verified e-mail address merges people across e
       });
       return rec;
     };
-    const g = buildEntityGraph([withSnippet(a, "Priya Nair"), withSnippet(b, "P. Nair")]);
+    const g = buildEntityGraph([withSnippet(a, "Priya Nair"), withSnippet(b, "Priya Nair")]);
     const merged = g.entities.find((e) => e.key === "person:email:priya.nair@partner.example")!;
     expect(merged.email_ids.sort()).toEqual([a.id, b.id].sort());
   });
@@ -170,7 +170,8 @@ describe("organizations, accounts, amounts", () => {
 describe("provenance and origin", () => {
   it("keeps per-mention origin and source email; marks entities seen by the AI as 'ai'", async () => {
     const { byId } = await emails();
-    const analysis = withEntities(byId.E001!, [person("p", byId.E001!.from!.address.split("@")[0]!.replace(/[^a-z]/g, " "), byId.E001!.from!.address)]);
+    // the entity's name IS the header address: an explicit identification
+    const analysis = withEntities(byId.E001!, [person("p", byId.E001!.from!.address)]);
     const g = buildEntityGraph([analysis]);
     const sender = g.entities.find((e) => e.key === `person:email:${byId.E001!.from!.address.toLowerCase()}`)!;
     expect(sender.origin).toBe("ai");

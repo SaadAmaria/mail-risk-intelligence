@@ -13,6 +13,7 @@ import { callJsonAgent, type ParseResult } from "./callJson";
 import { AgentError } from "./errors";
 import { numbersInText } from "./deterministic";
 import { buildRiskPrompt, RISK_PROMPT_VERSION } from "./prompts/risk";
+import { checkRelationship } from "../risk/relationshipRules";
 import { normalizeForMatch } from "./source";
 
 export { RISK_PROMPT_VERSION };
@@ -155,20 +156,37 @@ export function validateRisk(raw: LlmRisk, extraction: Extraction): ParseResult<
     });
   }
 
-  // Relationships need real endpoints and a quote of the cited snippet.
+  // Relationships need real endpoints, a quote of the cited snippet, a known predicate and endpoint
+  // types the predicate can connect. See risk/relationshipRules.ts: code proves the quote occurs and
+  // the structure fits; it does NOT prove that the quote means the predicate (the read-time
+  // advisory in relationshipSupport.ts flags weak support). An unknown predicate is dropped.
+  const typeOfRef = new Map(entities.map((e) => [e.ref, e.type]));
   const relationships: RiskAnalysis["relationships"] = [];
   for (const r of raw.relationships) {
-    const ok = refs.has(r.from_ref) && refs.has(r.to_ref) && quoteOk(r.snippet_id, r.quote);
-    if (!ok) {
+    if (!(refs.has(r.from_ref) && refs.has(r.to_ref) && quoteOk(r.snippet_id, r.quote))) {
       dropped++;
       warnings.push("A relationship was removed: unknown entity ref or unsupported quote.");
       continue;
     }
-    const predicate = PREDICATES.has(r.predicate) ? r.predicate : "related_to";
-    if (predicate !== r.predicate) warnings.push("An unknown relationship type was recorded as related_to.");
+    if (!PREDICATES.has(r.predicate)) {
+      dropped++;
+      warnings.push("A relationship was removed: its type is not one of the supported relationship types.");
+      continue;
+    }
+    const predicate = r.predicate as RiskAnalysis["relationships"][number]["predicate"];
+    const check = checkRelationship(predicate, typeOfRef.get(r.from_ref)!, typeOfRef.get(r.to_ref)!, r.quote, r.from_ref === r.to_ref);
+    if (!check.ok) {
+      dropped++;
+      warnings.push(
+        check.reason === "self_reference"
+          ? "A relationship from an entity to itself was removed."
+          : `A "${predicate}" relationship was removed: it cannot connect those kinds of entity.`,
+      );
+      continue;
+    }
     relationships.push({
       from_ref: r.from_ref,
-      predicate: predicate as RiskAnalysis["relationships"][number]["predicate"],
+      predicate,
       to_ref: r.to_ref,
       snippet_id: r.snippet_id,
       quote: r.quote.trim(),

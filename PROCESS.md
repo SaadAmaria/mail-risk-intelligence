@@ -1561,6 +1561,205 @@ authenticity.
 - **Time:** total development time was not measured.
 
 
+### 2026-10-11 — Phase 9B: independent audit remediation (implemented, **uncommitted**)
+
+- **Context:** an independent audit (Codex) reported reproducible correctness defects that Phase 9A
+  had not found. The operator asked that each be reproduced against the current source before any fix.
+  Each was reproduced; none was accepted on trust. Phase 9A's uncommitted changes were preserved.
+- **Findings and outcome (each reproduced by a test that fails on `HEAD` and passes now):**
+  1. **P1 timeout.** Confirmed by reading and by test: the abort timer was cleared when the response
+     headers arrived, so a stalled body held the single worker forever. Fixed: one deadline covers
+     connect, headers and body, enforced by racing so a transport that ignores abort cannot hold it;
+     the body is read with a size cap (default 1 MiB). 6 of 6 new deadline tests failed on `HEAD`
+     (timing out at the test limit), plus a queue-progress test.
+  2. **P1 relationship grounding.** Confirmed: a real quote was enough for any predicate
+     (the audited `threatens` with an invoice subject was accepted). Fixed (D98): endpoint-type table,
+     a necessary-wording filter for `threatens` / `alleges_against`, unknown predicates dropped
+     instead of mapped to `related_to`. The audit's E001 amount case: an amount is kept only as the
+     thing transferred and labelled "requests transfer of"; the recorded E001 still replays to its
+     captured digest, so no fixture needed to change.
+  3. **P1 person identity.** Confirmed: a model-supplied address was trusted merely because it
+     appeared somewhere in the message, so an unrelated person could be merged into the sender.
+     Fixed (D99): only an address the message itself ties to the name (header display name, or
+     "Name <addr>" / "(addr)" / "at addr" in its evidence text) or an entity named by the address.
+  4. **P2 malformed JSON.** Confirmed: one syntactically invalid column made `listAnalyses` throw
+     and took the inbox and graph down. Fixed (D100): per-column safe parse, the record is
+     downgraded, the email and healthy records are untouched, nothing is rewritten or invented.
+  5. **P2 organizations and masked accounts.** Confirmed: "Acme Inc." and "Acme LLC" merged;
+     "checking ... 1234" and "savings ... 1234" of one owner merged. Fixed (D101): legal forms are
+     kept apart only when the data contains both, and differently described masked accounts of one
+     message stay apart. Verified merges still merge.
+- **Behaviour changes to disclose:** an older stored analysis is not rewritten, so existing live
+  graphs can still contain relationships accepted under the old rules until re-analysed; the
+  display wording changed for a transfer whose target is an amount; the graph's identity keys can
+  differ from before only where the data shows an ambiguity.
+- **Documentation corrected:** the README no longer implies every AI claim is verified; it has a
+  "What is verified, and what is not" table; it says that capturing the recordings needed the
+  operator's Groq key and replaying them needs none; the time section states that a retrospective
+  estimate is not possible. The Phase 9A storyboard's wording "explainable risk evidence" is
+  qualified in the report: quotes are verified, interpretations are the model's.
+- **What did not go right:** several of my edit scripts were mangled by shell quoting and were redone
+  with file-based scripts; two older tests asserted the defective behaviour and were rewritten
+  (they are named in the diff); my own first browser wait used a case-sensitive pattern against
+  upper-cased CSS text.
+- **Time:** total development time was not measured and cannot be reconstructed.
+
+### 2026-10-11 — Phase 9C: independent re-audit findings closure (implemented, **uncommitted**)
+
+- **Context:** a second independent audit concluded PASS_WITH_FINDINGS / fix before shipping: the 9B
+  improvements were valid but not complete. Each remaining finding was reproduced before being fixed.
+- **Reproduced and fixed:**
+  1. **Cancellation hang.** `await body.cancel()` in the failure path never returned for a stream whose
+     cancel never settles (oversized declared length), so the original error and the worker were held.
+     Cleanup is now fire-and-forget with no unhandled rejection. 2 new tests hang on the earlier code.
+  2. **Structural stored-JSON failures.** `attempts_json=[null]`, `[{}]`, `to_json=[null]` and
+     related shapes crashed reads. Elements are validated individually; bad elements are dropped and
+     reported; 11 new tests crash without the schemas. Nothing is rewritten on read.
+  3. **Masked accounts across messages.** "checking ... 1234" and "savings ... 1234" of one owner
+     merged. Masked mentions now merge only when described identically; complete numbers merge.
+  4. **Relationship semantics.** My 9B filter used an English word list to *drop* relationships: that
+     both missed negated and reversed threats and rejected valid uncommon phrasing. I removed the
+     drop. Validation is now structural only; a read-time advisory flags weak support (names not in
+     the quote, order, wording present/absent/negated) and the UI shows "Check this quote". Legacy
+     stored analyses are re-checked structurally on read and impossible relationships are excluded
+     and counted, without rewriting them.
+- **Disclosure:** the 9B behaviour (dropping accusations without cue wording) is reversed here; D98 is
+  superseded by D103. Relationships dropped by 9B for lack of cue wording are no longer dropped.
+- **Documentation:** overstatements corrected; "No authentication" is an exemption; implementation
+  status is separated from independent verification; `docs/AUDIT_CLOSURE.md` added.
+- **Development time:** not measured. The earlier statement that a retrospective estimate was
+  impossible was too strong: timestamps give an upper-level indication (about 9.1 h elapsed span of
+  agent-session events, about 6.9 h of continuous activity at a 5-minute gap threshold). That is
+  session activity, not focused human time, and it is disclosed as such in the README.
+- **What did not go right:** my 9B cue list was a poor design that I presented as conservative; shell
+  quoting corrupted three of my edit scripts and a regular expression (found by the compiler); I had
+  to redo them as file-based scripts.
+
+### 2026-10-12 — Phase 9D: final audit P2/P3 closure (implemented, **uncommitted**)
+
+- **Prompt (human, relayed from the final independent review):** no P0/P1; FIX_BEFORE_SHIPPING over
+  inconsistent relationship-uncertainty presentation (P2), silently dropped email-field elements
+  (P3), and two misleading timeout tests (P3). Targeted fixes only; no commit, push, live provider or
+  port-3001 process.
+- **Preserved:** HEAD `633ddd1`; all 9A–9C changes, including untracked files, left intact; seed and
+  recorded fixtures byte-identical (SHA-256 compared with HEAD).
+- **P2 (done):** the server's existing `review`/`support` metadata now drives one shared
+  note/chip on the email-detail rows, Graph List, canvas accessible names (dashed outline as the visual
+  cue), graph inspector (unchanged) and graph-to-evidence callout. The callout now reads "This passage
+  was cited for this AI-inferred relationship", and separates found-in-text from meaning. No heuristic
+  runs in the browser (D107).
+- **Found during P2 testing:** `applyFilters` dropped the edge-level `review` flag, so the
+  legacy-shape tests failed in every graph view. Fixed.
+- **P3 address reporting (done):** `read_issues` computed on read; partial lines marked incomplete,
+  "Could not be read" instead of "No recipients listed"; D105 and D100 overstated the earlier behaviour
+  and are corrected (D105 note, D108).
+- **P3 tests (done):** inspection confirmed both findings. Beyond that, the rejecting-cancel test never
+  reached the stream's cancel because the stream was locked to the reader. The client now cancels via
+  that reader. Tests were rewritten so each reaches its named path, and a separate synchronous-throw test
+  was added. 3 rewritten tests fail when the 9C release logic is temporarily restored; the file was then
+  restored and re-run (18/18).
+- **Executed validation:** typecheck 0 errors; server **38 files / 701 tests**, web **23 files / 259
+  tests**, all passing; production build exit 0; `git diff --check` clean; secret scan (Groq/OpenAI/AWS
+  key and private-key patterns over tracked and untracked files) no matches; real-recording replays of
+  E001/E004/E007 checked by digest in `relationship-grounding.test.ts`. Isolated Edge run (API 3491 / web
+  5491, new temporary database, no env file, 0 LLM/Groq variables, outbound guard loaded, 0 sockets
+  opened): recorded replays, E009 partly and E002 wholly corrupted in that temporary database only;
+  **46/46** checks at 1440x900 and 375x812. The isolated processes were stopped afterwards.
+- **Corrections during the phase (mine):** my first browser script assumed the graph-linked passage
+  had one relationship. In the real E001 data the same quote is cited by two relationships (one
+  flagged), and the UI correctly used the plural with the note under the flagged one. The script was
+  fixed, not the app. Two other script errors (CSS-uppercased label read via `innerText`, an escaped
+  newline) were also script-side.
+- **Not verified:** screen-reader run, axe audit, non-Chromium browsers, physical touch device, real
+  provider outage. The inbox and graph do not display read issues.
+- **Time:** human focused time not measured. Agent activity for this phase: first timestamped command
+  15:23 local, this entry about 15:40; the initial inspection before 15:23 has no timestamp.
+
+### 2026-10-12 — Phase 9D delta: remaining review findings (implemented, **uncommitted**)
+
+- **Prompt (human, relayed from the independent review of 9D):** two P2 findings
+  (`FeaturedRelationship` ignores review; both inspectors ignore edge-only legacy review) and P3
+  documentation inaccuracies. Targeted fixes only; no commit or push.
+- **Correction to the 9D entry above:** it said the review metadata drove the note "on … graph
+  inspector (unchanged)" and the README said "wherever a relationship is shown". Both were too broad.
+  The desktop featured relationship never showed the note; my own 9D screenshot shows the flagged
+  "James sent email to Arcline" featured without it, and I did not notice. The inspectors missed
+  edge-only flags.
+- **Reproduced first:** the new tests were run against the 9D code: 9 of 19 inspector tests failed
+  (4 featured, 4 inspector legacy, 1 accessibility). The 3 new filter tests failed against the pre-9D
+  filter, which was temporarily restored and then put back.
+- **Fixed:** `unattributedReview()` (relationship-level flag that no citation explains, shown once);
+  both inspectors and the featured panel use it; the featured panel features the flagged citation;
+  `claims.ts` follows the same rule. Still no heuristic in the browser (D107 correction).
+- **Docs corrected (with notes, not silent rewrites):** README place list (no "every surface"), test
+  counts, which tests use real SQLite, recording-key contradiction; traceability counts;
+  `AUDIT_CLOSURE.md` delta table; D107 correction.
+- **Executed validation:** typecheck 0 errors; server **38 files / 701 tests**, web **24 files / 281
+  tests**, all passing; build, `git diff --check`, fixture SHA-256 and secret scan as listed in the
+  report. Isolated Edge stack (new temporary database, 0 LLM/Groq variables, outbound guard, no sockets
+  opened): delta checks **25/25** and the 9D checks re-run **46/46** at 1440 and 375 px. The stack was
+  stopped afterwards. The edge-only legacy shape cannot be produced by the current server (it always
+  attaches per-quote support), so that path is verified in jsdom only.
+- **My mistakes this round:** a test helper first matched nested quotes (tightened to direct children
+  before the final failure run); the browser script again used `innerText` on CSS-uppercased headings;
+  my first README wording miscounted the SQLite test files (five vs six) and was corrected before
+  finishing.
+- **Time:** human focused time not measured; agent activity about 15:42–16:00 local.
+
+### 2026-10-12 — Historical audit ledger reconciliation (documentation only, **uncommitted**)
+
+- **Prompt (human):** a historical closure audit (C) found 71 findings across the two original audit
+  reports (A, B), 17 of them missing from `docs/AUDIT_CLOSURE.md`, the duration requirement unmet,
+  and recommended HOLD. Documentation-only reconciliation; no code, tests, fixtures or commits.
+- **Agent's first response:** the reports were not in the workspace, so I asked for them instead of
+  guessing the 71 findings. The operator then supplied all three, plus a retrospective estimate of
+  about 8 hours of total personal involvement, including planned demo preparation; the video is not
+  finished.
+- **Done:** read A, B and C completely. `AUDIT_CLOSURE.md` now has one master matrix (H01–H71) with
+  C's original severities and sources, checked by script: 71 unique IDs, totals sum to 71, every
+  severity and source matches C. It also has individual rows for the 17 missing findings, a
+  development-time section, a mapping from the former rows, and the pre-reconciliation ledger kept
+  verbatim as an appendix. Traceability gained an independent-evidence column and an evaluation
+  criteria and delivery section; row 24 changed from "Partial" to "Estimate". README: the time
+  section, the prompt-clipping limit, and author versus independent test counts.
+- **Corrections of earlier records (dated, not silent):**
+  - DECISIONS D98: "16 grounding tests … failing on HEAD" were import failures (`relationshipRules.ts`
+    did not exist at HEAD). The same applies to item 2 of the Phase 9B entry above ("each reproduced
+    by a test that fails on `HEAD`"): for that item the file failed at import, not test by test.
+  - The Phase 9B entry's "a retrospective estimate is not possible" and the Phase 9C wording are
+    superseded by the operator's estimate. Measured focused time remains unmeasured.
+  - README session-activity figures: recounted from the transcripts. The 2026-10-11 window gives 4,201
+    events (4,199 had been written) with the same hour figures; 2026-10-12 was added.
+  - The test totals 701/281 are the author's. Audit C executed 563 server tests (31 files) and 281
+    web tests.
+- **Judgment calls left for review:** H40 is classified NOT_INDEPENDENTLY_VERIFIED (estimate
+  disclosed, measured duration UNMET) rather than OPEN, because the brief asks to be told honestly how
+  long was spent and an estimate now answers that. The estimate includes time not yet spent. H34 (real
+  hostile PDFs) is an accepted confidence gap, explicitly untested by anyone. H39 (scope compression)
+  is an accepted evaluation judgment, not a product defect.
+- **Not done:** no runtime code, test, fixture, seed, environment or dependency change. The
+  "legitimate relationships" test title (H54) needs a test edit and is deferred. No PROCESS index
+  (H44, deferred).
+- **Time:** human focused time not measured; agent activity for this pass about 16:32–16:45 local.
+
+### 2026-10-12 — H40/H41 duration wording (documentation only, **uncommitted**)
+
+- **Prompt (human):** the independent Codex verification of the reconciled ledger confirmed all 71
+  findings accounted for and no reproducible P0/P1/P2 product defect in the verified scope. Its only
+  remaining blocker was inconsistent duration wording in H40/H41. The operator supplied the exact
+  statement: "**Estimated Project Duration:** Approximately 8 hours, including planning, development,
+  testing, code review, documentation, and demo video production." It is the operator's approximate
+  overall project-effort estimate, not a precisely measured duration.
+- **Classification now:** disclosure SATISFIED (approximate estimate); precise focused-time
+  measurement NOT AVAILABLE; independent verification NOT PERFORMED; demo video PLANNED, NOT YET
+  COMPLETED. H40 and H41 keep the status NOT_INDEPENDENTLY_VERIFIED; neither is counted as open or
+  unmet. Traceability row 24 is "Satisfied (estimate)", kept separate from "Done".
+- **Supersedes, does not erase:** the previous entry's "measured duration UNMET" and its judgment
+  call about H40. The earlier wording ("about 8 hours of total personal involvement") is noted in the
+  README and the ledger.
+- **Not changed:** runtime code, tests, fixtures, seed, environment, dependencies; DECISIONS.md (it
+  has no duration statement); the ledger appendix (pre-reconciliation record).
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->

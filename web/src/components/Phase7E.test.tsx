@@ -209,6 +209,15 @@ describe("automatic-checks eligibility in the detail view", () => {
   });
 });
 
+describe("narrow-screen page structure", () => {
+  it("the list-first inbox has a page heading", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} }));
+    window.history.replaceState(null, "", "/");
+    render(<App />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Mailbox" })).toBeTruthy();
+  });
+});
+
 describe("small wording corrections", () => {
   it("uses the singular for one hidden entity or relationship", async () => {
     graph = gGraph(

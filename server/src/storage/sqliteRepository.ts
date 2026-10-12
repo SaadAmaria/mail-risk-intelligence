@@ -1,8 +1,10 @@
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
+import { z } from "zod";
 import {
   Extraction,
+  HeaderField,
   RiskAnalysis,
   type AnalysisRecord,
   type MailboxAddress,
@@ -10,6 +12,7 @@ import {
   type RunLog,
   type StoredAttachment,
   type StoredEmail,
+  type StoredReadIssue,
 } from "@mri/shared";
 import { assertAnalysisInvariants } from "./analysisInvariants";
 import {
@@ -234,24 +237,41 @@ export class SqliteRepository implements MailboxRepository {
    * as a complete assessment.
    */
   private hydrateAnalysis(r: AnalysisRow): AnalysisRecord {
-    const warnings: string[] = r.warnings_json ? (JSON.parse(r.warnings_json) as string[]) : [];
+    // A row whose JSON is not even syntactically valid must not take down every list or graph
+    // query: the unreadable part is dropped (never replaced by invented data) and the record is
+    // downgraded below, exactly as for a schema mismatch. The original email is untouched.
+    const warnings: string[] = [];
+    if (r.warnings_json) {
+      const w = parseItems(r.warnings_json, z.string());
+      warnings.push(...w.items);
+      if (!w.readable || w.dropped > 0) warnings.push("Some stored warnings could not be read and were ignored.");
+    }
     let extraction: Extraction | null = null;
     let assessment: RiskAnalysis | null = null;
 
     if (r.extraction_json) {
-      const p = Extraction.safeParse(JSON.parse(r.extraction_json));
-      if (p.success) extraction = p.data;
-      else warnings.push("Stored extraction no longer matches the current schema and was ignored.");
+      const j = parseJson(r.extraction_json);
+      const p = j.ok ? Extraction.safeParse(j.value) : null;
+      if (p?.success) extraction = p.data;
+      else warnings.push(j.ok ? "Stored extraction no longer matches the current schema and was ignored." : "Stored extraction could not be read (invalid JSON) and was ignored.");
     }
     if (r.assessment_json) {
-      const p = RiskAnalysis.safeParse(JSON.parse(r.assessment_json));
-      if (p.success) assessment = p.data;
-      else warnings.push("Stored assessment no longer matches the current schema and was ignored.");
+      const j = parseJson(r.assessment_json);
+      const p = j.ok ? RiskAnalysis.safeParse(j.value) : null;
+      if (p?.success) assessment = p.data;
+      else warnings.push(j.ok ? "Stored assessment no longer matches the current schema and was ignored." : "Stored assessment could not be read (invalid JSON) and was ignored.");
+    }
+    let runs: RunLog[] = [];
+    if (r.attempts_json) {
+      const items = parseItems(r.attempts_json, RunLogSchema);
+      runs = items.items as RunLog[];
+      if (!items.readable) warnings.push("Stored run history could not be read and was ignored.");
+      else if (items.dropped > 0) warnings.push(`${items.dropped} stored run record(s) were malformed and were ignored.`);
     }
 
     let status = r.status;
     let mode = r.analysis_mode;
-    if (status === "complete" && (!extraction || !assessment)) {
+    if ((status === "complete" && (!extraction || !assessment)) || (status === "partial" && !extraction)) {
       status = "failed";
       mode = "failed";
       assessment = null;
@@ -265,7 +285,7 @@ export class SqliteRepository implements MailboxRepository {
       extraction,
       assessment,
       warnings,
-      runs: r.attempts_json ? (JSON.parse(r.attempts_json) as RunLog[]) : [],
+      runs,
       model: r.model,
       prompt_version: r.prompt_version,
       updated_at: r.updated_at,
@@ -308,6 +328,18 @@ export class SqliteRepository implements MailboxRepository {
     );
 
     const from: MailboxAddress | null = r.from_address ? { address: r.from_address, name: r.from_name } : null;
+    // List columns are validated element by element. What cannot be read is left out (never
+    // invented) and reported, so the UI does not present a partial list as complete.
+    const issues: StoredReadIssue[] = [];
+    const list = <T,>(field: StoredReadIssue["field"], text: string, schema: z.ZodType<T>): T[] => {
+      const p = parseItems(text, schema);
+      if (!p.readable || p.dropped > 0) issues.push({ field, unreadable: !p.readable, dropped: p.dropped });
+      return p.items;
+    };
+    const to = list("to", r.to_json, AddressSchema) as MailboxAddress[];
+    const cc = list("cc", r.cc_json, AddressSchema) as MailboxAddress[];
+    const missing_headers = list("missing_headers", r.missing_headers_json, HeaderField);
+    const warnings = list("warnings", r.warnings_json, z.string());
     return {
       id: r.id,
       external_id: r.external_id,
@@ -317,15 +349,70 @@ export class SqliteRepository implements MailboxRepository {
       source_kind: r.source_kind,
       source_filename: r.source_filename,
       from,
-      to: JSON.parse(r.to_json) as MailboxAddress[],
-      cc: JSON.parse(r.cc_json) as MailboxAddress[],
+      to,
+      cc,
       date: r.date,
       subject: r.subject,
       body: r.body,
       body_truncated: r.body_truncated === 1,
-      missing_headers: JSON.parse(r.missing_headers_json) as StoredEmail["missing_headers"],
-      warnings: JSON.parse(r.warnings_json) as string[],
+      missing_headers,
+      warnings,
       attachments,
+      ...(issues.length > 0 ? { read_issues: issues } : {}),
     };
   }
+}
+
+type Parsed = { ok: true; value: unknown } | { ok: false };
+
+/** JSON.parse that reports failure instead of throwing. */
+function parseJson(text: string | null): Parsed {
+  if (text === null || text === undefined) return { ok: false };
+  try {
+    return { ok: true, value: JSON.parse(text) };
+  } catch {
+    return { ok: false };
+  }
+}
+
+const AddressSchema = z.object({ address: z.string().min(1), name: z.string().nullable() });
+const UsageSchema = z.object({
+  prompt_tokens: z.number(),
+  completion_tokens: z.number(),
+  total_tokens: z.number(),
+  reasoning_tokens: z.number().nullable(),
+});
+const StageSchema = z.object({
+  stage: z.enum(["extraction", "risk"]),
+  outcome: z.enum(["ok", "failed", "skipped"]),
+  calls: z.number(),
+  error_kind: z.string().nullable(),
+  error_message: z.string().nullable(),
+  usage: UsageSchema.nullable(),
+  latency_ms: z.number().nullable(),
+  dropped_items: z.number(),
+});
+const RunLogSchema = z.object({
+  started_at: z.string(),
+  finished_at: z.string().nullable(),
+  outcome: z.enum(["complete", "partial", "degraded", "failed", "interrupted"]).nullable(),
+  stages: z.array(StageSchema),
+});
+
+/**
+ * A stored JSON array column, validated element by element. A column that is not valid JSON, or not
+ * an array, is "unreadable" (empty result). An element that parses but has the wrong structure is
+ * dropped and counted. Healthy elements are kept. Nothing is ever written back.
+ */
+function parseItems<T>(text: string | null, schema: z.ZodType<T>): { items: T[]; dropped: number; readable: boolean } {
+  const p = parseJson(text);
+  if (!p.ok || !Array.isArray(p.value)) return { items: [], dropped: 0, readable: false };
+  const items: T[] = [];
+  let dropped = 0;
+  for (const el of p.value) {
+    const r = schema.safeParse(el);
+    if (r.success) items.push(r.data);
+    else dropped++;
+  }
+  return { items, dropped, readable: true };
 }

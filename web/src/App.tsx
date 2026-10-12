@@ -126,6 +126,8 @@ export function App() {
         )}
         {!onGraph && showList && (
           <div className={s.listCol}>
+            {/* On a narrow screen the list is the whole page; give it a page heading (wide screens have one). */}
+            {!wide && <h1 className="sr-only">Mailbox</h1>}
             <InboxPane
               route={route}
               query={query}

@@ -1842,6 +1842,164 @@ engineering choices below are Claude's, pending review.
 - **Not claimed:** Ollama or any local model works; the screenshots show the recorded-replay state, not
   a live run.
 
+## Phase 9B records (independent audit remediation)
+
+Contemporaneous (2026-10-11). Status: implemented, uncommitted. These supersede, without rewriting,
+D23/D24 where they differ (unknown predicates are now dropped rather than mapped to `related_to`).
+
+## D98. Relationship validation: structure and wording are checked; meaning is the model's
+
+- **Selected:** `risk/relationshipRules.ts`: allowed endpoint types per predicate; a self relation is
+  rejected; `threatens` and `alleges_against` require some wording of that kind in the cited quote.
+  An unknown predicate is dropped. An amount may be the target of `requests_transfer_to` only as the
+  thing transferred (display: "requests transfer of").
+- **Not claimed:** that a surviving relationship is true. There is no second model; lexical presence is
+  a necessary condition, never proof. The interface and README say the type is the AI's reading.
+- **Alternatives:** a second LLM verifier (excluded by the brief of this phase and by scope); mapping
+  the E001 amount to an account or recipient (rejected: it misidentifies money); dropping it (rejected:
+  it would change a recorded result).
+- **Verification (executed):** 16 grounding tests incl. the audited case, failing on HEAD; recorded
+  E001/E004/E007 replay to their captured result digests.
+- **Limit:** the wording lists are small and English only; an accusation phrased unusually is dropped
+  (a missed relationship is preferred to an unsupported one).
+- **Correction (2026-10-12, audit findings H57 and B §8):** "16 grounding tests … failing on HEAD"
+  overstates the evidence. `relationship-grounding.test.ts` imports `risk/relationshipRules.ts`, which
+  did not exist at HEAD, so the whole file failed at import. That is not 16 individual regression
+  failures, and no per-test comparison against HEAD was made. The recorded replays matching their
+  digests is unaffected. The wording filter itself was later reversed (D103).
+
+## D99. Person identity: an association must be stated by the message
+
+- **Selected:** pairs come from header display names and from "Name <addr>", "Name (addr)", "Name at
+  addr" in evidence text; a name with two addresses is ambiguous; a model attribute is never evidence.
+- **Verification (executed):** 8 tests (unrelated address, sender attribute, recipient, titled alias,
+  first name only, ambiguity, cross-message merge still works); 3 fail on HEAD.
+- **Limit:** a person written differently in two messages with no stated pair will not merge.
+
+## D100. Persisted JSON is parsed defensively
+
+- **Selected:** per-column parse; unreadable analysis parts are dropped with a warning; a complete or
+  partial record that lost required parts becomes `failed`; unreadable address columns become empty;
+  reads never write.
+- **Verification (executed):** 7 tests on a real SQLite database; 6 fail on HEAD with SyntaxError.
+
+## D101. Weak organization and masked-account identities are not over-merged
+
+- **Selected:** legal-form suffix ignored unless two legal forms of one base exist; masked accounts
+  merge by (owner, digits) and are split when one message describes them differently.
+- **Verification (executed):** 9 tests, 3 fail on HEAD; order independence tested.
+
+## D102. One deadline for a provider call, and a size cap
+
+- **Selected:** a single timer covers headers and body, enforced by racing so an ignoring transport
+  cannot hold the worker; the body is cancelled; responses over 1 MiB are refused as bad.
+- **Verification (executed):** 9 tests (stalled body, stalled headers, retry, bounded retries, abort vs
+  network classification, mid-body failure, endless body, declared length, normal response) and a
+  single-worker queue-progress test; 6 fail on HEAD by timing out.
+## Phase 9C records (re-audit closure)
+
+## D103. Relationship support is advisory and read-time; validation is structural only
+
+- **Selected:** `relationshipRules.ts` rejects impossible structure and unknown types at validation
+  and again on read for stored analyses (counted in `meta.excluded_relationships`).
+  `relationshipSupport.ts` computes advisory notes (participants named, order, accusation wording,
+  negation) that produce "Check this quote"; it never removes a relationship.
+- **Supersedes:** D98's wording filter.
+- **Why:** an English cue list gives false assurance in both directions (negation, reversal) and
+  false negatives for other phrasing or languages.
+- **Limit:** semantic truth remains the model's assertion; there is no verifier model.
+
+## D104. Masked accounts are identified by owner and description, not by last digits
+
+- **Selected:** a complete number (8+ digits, not masked) merges by owner and number; a masked mention
+  merges only with an identically described mention.
+
+## D105. Stored JSON is validated per element
+
+- **Selected:** zod schemas for runs, stages, usage, addresses; elements that fail are dropped; reads
+  do not write.
+- **Correction (Phase 9D):** the 9C wording "dropped with a warning" was true only for the analysis
+  columns (runs, analysis warnings, extraction, assessment). For the email columns (`to`, `cc`,
+  `missing_headers`, email `warnings`) bad elements were dropped **silently**, and a wholly unreadable
+  recipient list was displayed as "No recipients listed", which implied a complete, empty list. D100's
+  "unreadable address columns become empty" had the same gap. Fixed in D108.
+
+## D106. Provider-call cleanup is non-blocking
+
+- **Selected:** the deadline races headers and body; cancel is fire-and-forget; body size is capped.
+- **Correction (Phase 9D):** D102's "the body is cancelled" was not true for a timeout during the body
+  read. The stream is then locked to the reader, so `body.cancel()` only rejected with a lock error and
+  never reached the stream's own cancel. The test named for a rejecting cancel passed without reaching
+  it, and the test named for an "uncancellable" HTTP error used an ordinary body. Now the reader that
+  holds the lock is cancelled (still fire-and-forget). Three rewritten tests fail on the earlier release
+  logic (executed: 3 failed, 15 passed), and all 18 pass now.
+
+## Phase 9D records (final audit closure)
+
+## D107. Relationship review status is shown on every surface, from server metadata only
+
+- **Context:** an independent audit (P2) found that the server's advisory `review`/`support` metadata
+  appeared only in the graph inspector and navigator. The email-detail relationship rows, Graph List,
+  canvas labels (incl. accessible names) and the evidence callout reached from the graph did not show
+  it, and that callout said the passage "supports a relationship".
+- **Selected:** one shared `ReviewNote`/`ReviewChip` (moved out of `NodeInspector`, same styling) and
+  `lib/review.ts`, which only *reads* `review` and `support.review` and never re-derives them. The
+  note is used in the detail rows and the graph-linked evidence callout, under the specific flagged
+  citation. The chip is used in Graph List, with a visually hidden full sentence for screen readers.
+  The canvas label's accessible name gets the same sentence, and the pill gets a dashed outline of the
+  same width (no size or position change). The callout now says "This passage was cited for this
+  AI-inferred relationship: …", and separates *quote found word for word* (code) from *what the
+  relationship means* (the AI's reading).
+- **Alternatives:** (a) a global warning on every relationship, which the audit ruled out and which
+  would dilute the signal; (b) re-running the heuristic in the browser, rejected because the two copies
+  could drift; (c) a visible text marker inside canvas pills, rejected because it changes measured
+  label widths and therefore the approved spatial layout.
+- **Found while testing:** `applyFilters` rebuilt graph edges without `review`, so an edge flagged only
+  at edge level (the legacy or partial payload shape) lost its marker in the graph views. Fixed and
+  covered.
+- **Trade-offs / limits:** the dashed outline is a subtle visual cue, and the full meaning is in the
+  accessible name and the inspector. On a phone, Graph List columns already broke words mid-letter
+  before this change; measured column widths are identical with and without the chip. The heuristic
+  itself is unchanged (English-only, advisory).
+- **Verification (executed):** `RelationshipReview.test.tsx`, 22 relationship tests: negated,
+  reversed, unrelated, valid-uncommon and ordinary cases on each of 4 surfaces, using metadata
+  captured from `assessRelationshipSupport`, plus 2 legacy-shape tests. Isolated Edge run at 1440 and
+  375 px on the real E001/E004/E007 replays: 46/46 checks passed, including browser-computed accessible
+  names.
+- **Approval:** implemented under the Phase 9D authorization; awaiting human review.
+- **Correction (Phase 9D delta, after independent review):** the title and the README overstated
+  this as "every surface". Two gaps remained. (1) The featured "where to start" relationship
+  (`FeaturedRelationship`, desktop) showed a flagged relationship without the note; the 9D desktop
+  screenshot showed exactly that, and it went unnoticed. (2) The relationship and entity inspectors
+  read only per-quote `support`, so an edge flagged only at edge level (legacy shape) showed no note.
+  Fix: `unattributedReview()` in `lib/review.ts`. A citation's own advisory is shown under that quote;
+  a relationship-level flag that no citation explains gets **one** note for the relationship; nothing
+  is shown when neither level flags it. The same rule now drives the graph-linked callout (`claims.ts`).
+  The featured panel features the flagged citation when there is one, so the note, quote and
+  evidence link refer to the same passage.
+  Verification (executed): `InspectorReview.test.tsx` (19) and 3 filter tests; 12 fail on the
+  previous implementation (9 inspector/featured/accessibility, 3 filter against the pre-9D filter).
+
+## D108. Unreadable email list columns are reported, not presented as complete
+
+- **Context:** audit P3, together with the D105 correction above.
+- **Selected:** the repository reports `read_issues` (`field`, `unreadable`, `dropped`) for `to`, `cc`,
+  `missing_headers` (now validated against the header-name enum) and email `warnings`. The value is
+  computed on read and never stored. The detail API passes it through as an optional, additive field.
+  The detail view shows a warning callout, marks a partial To/Cc line "(incomplete: some could not be
+  read)", and shows "Could not be read" instead of "No recipients listed" when nothing survived.
+  Healthy elements are kept, nothing is invented, and the stored row and raw source are not modified.
+- **Alternatives:** (a) appending text to `email.warnings`, rejected because it conflates storage
+  damage with notes from parsing the message and the UI cannot tell which line is incomplete;
+  (b) listing the field in `missing_headers`, rejected because it would claim the source lacked the
+  header.
+- **Limits:** the inbox list and the graph do not show the warning (the graph simply has fewer
+  header-derived people). Re-analysing a damaged message sends the partial recipient list to the model.
+  `from`, `date` and `subject` are plain columns and are not covered.
+- **Verification (executed):** `storage-corrupt.test.ts` +6 tests (healthy; mixed; `[null]`; invalid
+  JSON; cc/missing_headers/warnings elements; inbox and graph available plus the row and source unchanged), 3
+  UI tests, and the browser run on a temporary database with E009 partly and E002 wholly corrupted.
+- **Approval:** implemented under the Phase 9D authorization; the additive API field awaits human review.
 ## Minor choices (grouped, not independently evaluated)
 
 Express 4, React 18, Vite 6, zod 3, `concurrently`, Node's built-in env-file loading, a

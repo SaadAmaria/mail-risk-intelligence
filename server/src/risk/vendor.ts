@@ -17,6 +17,27 @@ const LEGAL_SUFFIX = new Set([
   "inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation", "co", "company", "gmbh", "plc", "sa", "ag", "bv", "nv",
 ]);
 
+const SUFFIX_CLASS: Record<string, string> = { incorporated: "inc", limited: "ltd", corporation: "corp", company: "co" };
+
+/**
+ * A normalized name split into its base and its legal-form class ("inc", "llc", ...), or "" when
+ * there is none. "Incorporated" and "Inc" are the same class; "Inc" and "LLC" are not.
+ */
+export function splitLegalSuffix(name: string): { base: string; suffix: string } {
+  const tokens = name
+    .toLowerCase()
+    .replace(/[.,'’"()]/g, " ")
+    .replace(/&/g, " and ")
+    .split(/\s+/)
+    .filter(Boolean);
+  let suffix = "";
+  if (tokens.length > 1 && LEGAL_SUFFIX.has(tokens[tokens.length - 1]!)) {
+    const raw = tokens.pop()!;
+    suffix = SUFFIX_CLASS[raw] ?? raw;
+  }
+  return { base: tokens.join(" "), suffix };
+}
+
 /** Lower-case, punctuation-free vendor name without legal suffixes. Exact comparison only. */
 export function normalizeVendorName(name: string): string {
   const tokens = name

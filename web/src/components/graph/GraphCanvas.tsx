@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from "react";
-import { predicateLabel } from "../../lib/copy";
+import { predicateLabel, relationshipSpoken } from "../../lib/copy";
 import { fitTo, type SpatialLayout } from "../../lib/graph/spatial";
 import type { GraphModel } from "../../lib/graph/model";
 import {
@@ -329,8 +329,9 @@ export function GraphCanvas({ model, layout, selectedNodeId, selectedEdgeId, onS
                 type="button"
                 data-edge-id={e.id}
                 aria-pressed={selected}
-                aria-label={`Relationship: ${source.label} ${predicateLabel(edge.predicate)} ${target.label}`}
-                className={`${s.pill} ${hot ? s.pillHot : ""} ${hasSelection && !hot ? s.dim : ""} ${selected ? s.pillSelected : ""}`}
+                data-review={edge.review ? "true" : undefined}
+                aria-label={relationshipSpoken(`Relationship: ${source.label} ${predicateLabel(edge.predicate, target.type)} ${target.label}`, edge.review)}
+                className={`${s.pill} ${hot ? s.pillHot : ""} ${hasSelection && !hot ? s.dim : ""} ${selected ? s.pillSelected : ""} ${edge.review ? s.pillReview : ""}`}
                 style={{ left: e.labelX - e.labelW / 2, top: e.labelY - e.labelH / 2, minWidth: e.labelW, height: e.labelH, ["--i" as string]: i + 2 }}
                 onClick={(ev) => {
                   ev.stopPropagation();

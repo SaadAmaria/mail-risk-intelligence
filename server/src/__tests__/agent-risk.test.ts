@@ -107,7 +107,7 @@ describe("Agent B: ungrounded output is rejected and flagged", () => {
     expect(out.dropped).toBe(4);
   });
 
-  it("drops relationships with unknown endpoints or unsupported quotes; maps unknown predicates", async () => {
+  it("drops relationships with unknown endpoints, unsupported quotes or an unknown predicate", async () => {
     const llm = new FakeLlm([
       ok(
         b({
@@ -121,8 +121,8 @@ describe("Agent B: ungrounded output is rejected and flagged", () => {
       ),
     ]);
     const out = await runRiskAgent(llm, extraction, opts);
-    expect(out.analysis.relationships.map((r) => r.predicate)).toEqual(["requests_transfer_to", "related_to"]);
-    expect(out.dropped).toBe(2);
+    expect(out.analysis.relationships.map((r) => r.predicate)).toEqual(["requests_transfer_to"]);
+    expect(out.dropped).toBe(3);
   });
 
   it("removes tags outside the allowed list and de-duplicates", async () => {

@@ -14,6 +14,7 @@ import { buildUrl, DEFAULT_ROUTE } from "../../lib/router";
 import { announce } from "../../lib/announce";
 import { Icon } from "../Icon";
 import { Link } from "../Link";
+import { ReviewChip } from "../ReviewNote";
 import { RiskBadge } from "../RiskBadge";
 import { Button, Callout, EmptyState, Skeleton } from "../ui";
 import { TYPE_ICON } from "./EntityNode";
@@ -266,11 +267,12 @@ export function GraphPage({ route, onRoute, emails, totalEmails, refreshKey }: P
                     onClick={() => selectEdge(route.gedge === r.edge.id ? null : r.edge.id)}
                   >
                     <span className={s.navSentence}>
-                      {r.source.label} <em>{predicateLabel(r.edge.predicate)}</em> {r.target.label}
+                      {r.source.label} <em>{predicateLabel(r.edge.predicate, r.target.type)}</em> {r.target.label}
                     </span>
                     <span className={s.navMeta}>
                       <RiskBadge level={r.risk} size="sm" />
                       <span className={s.muted}>{r.messages.map((m) => m.id).join(", ")}</span>
+                      {r.edge.review && <ReviewChip />}
                     </span>
                   </button>
                 </li>

@@ -151,6 +151,7 @@ export function emailDetail(deps: ViewDeps, email: StoredEmail): EmailDetailResp
       warnings: email.warnings,
       attachments: email.attachments.map(({ id: _id, ...a }) => a),
       created_at: email.created_at,
+      ...(email.read_issues ? { read_issues: email.read_issues } : {}),
     },
     processing: { ...proc, warnings: analysis?.warnings ?? [], runs: analysis?.runs ?? [] },
     extraction: analysis?.extraction ?? null,
@@ -177,7 +178,8 @@ export function emailDetail(deps: ViewDeps, email: StoredEmail): EmailDetailResp
         predicate: r.predicate,
         source: r.source,
         target: r.target,
-        evidence: r.evidence.filter((x) => x.email_id === email.id).map(({ snippet_id, quote }) => ({ snippet_id, quote })),
+        evidence: r.evidence.filter((x) => x.email_id === email.id).map(({ snippet_id, quote, support }) => ({ snippet_id, quote, support })),
+        review: r.evidence.some((x) => x.email_id === email.id && x.support.review),
         also_in: r.email_ids.filter((id) => id !== email.id),
       })),
   };
@@ -227,6 +229,7 @@ export function graph(deps: ViewDeps, opts: { includeAmounts: boolean }): GraphR
       count: r.count,
       origin: r.origin,
       evidence: r.evidence,
+      review: r.review,
     }));
 
   return {
@@ -236,6 +239,7 @@ export function graph(deps: ViewDeps, opts: { includeAmounts: boolean }): GraphR
       email_count: emails.length,
       node_count: nodes.length,
       edge_count: edges.length,
+      excluded_relationships: data.excluded_relationships,
       basis:
         "Entities and relationships from validated AI assessments (complete analyses only) plus header-derived " +
         "people. People are linked across emails only by an identical verified e-mail address.",
