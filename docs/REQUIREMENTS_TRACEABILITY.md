@@ -9,15 +9,17 @@ describe **implementation as assessed by the author**:
 the author; **Partial** = implemented with a stated gap; **Exempt** = the brief itself excludes it,
 so it was not built (not a completed feature); **Not done** = absent (no row has this status since
 2026-10-13); **Completed, not delivered** = the item exists and was approved by the operator, but it
-has not been handed over and is not in the repository; **Satisfied (estimate)** = the
+has not been handed over to the interviewer and is not among the repository's tracked files; **Satisfied (estimate)** = the
 disclosure is made through the operator's approximate estimate, which is not a precise measurement
 and was not independently verified; it is kept apart from "Done". "20 Done" is therefore 20
 implementation claims, not 20 independent certifications.
 
 *Update, 2026-10-13:* row 23 was "Not done" until this date, because the optional screen recording
 did not exist. The video "Mail Risk Intelligence" has since been completed, so the row is now
-"Completed, not delivered". Completion is not delivery: the video has not been uploaded, published or
-shared. Rows 24 and O01 were updated to match.
+"Completed, not delivered". Later the same day it was published as an asset of the private GitHub
+Release `demo-v1.0`. That is availability to people with repository access, not delivery: final
+delivery to the interviewer is pending. Rows 24, D04 and O01 were updated to match, and the README
+section "Time spent" was renamed "Development Time" and shortened.
 
 *Correction, 2026-10-12:* row 24 was "Partial" until this date. That merged an honest inability to
 measure with partial completion (audit finding H41). It was briefly "Estimate" (same day) and is now
@@ -55,8 +57,8 @@ Paths are relative to the repository root. Test files named without a directory 
 | 20 | Tests | `server/src/__tests__/`, `web/src/**/*.test.*` | `npm test` | Done | Server 38 files / 701 tests, web 24 files / 281 tests (author-executed 2026-10-12, Phase 9D delta); no test calls a provider; no end-to-end suite in CI (real-browser checks were manual scripts) | C executed web 24 files / 281 tests and server 31 files / 563 tests; 7 file-writing server suites were excluded (H58) |
 | 21 | `README.md`: setup/run, architecture, decisions and tradeoffs, what next | [`README.md`](../README.md) | Commands verified from a fresh clone by the author (PROCESS.md, Phase 8); `web/src/lib/docs.test.ts` checks anchors, links, claims | Done | | Inspected; fresh-clone commands not re-run by an audit (H49) |
 | 22 | `PROCESS.md`: AI workflow, prompting, where the human corrected the agent | [`PROCESS.md`](../PROCESS.md) | — | Done | Early planning rounds are transcribed summaries, not verbatim logs (stated in the file) | Inspected; historical claims cannot authenticate themselves (H43) |
-| 23 | Optional 3–5 min screen recording | Outside the repository: the video "Mail Risk Intelligence", stored locally by the operator | No automated test. The author checked picture timing and sound against the source recordings; the operator reviewed and approved the final video (2026-10-13) | Completed, not delivered | Completed 2026-10-13: approximately 5 minutes 57 seconds (longer than the brief's suggested 3–5 minutes), narrated by the project author. Not part of the repository; not uploaded, published or shared. Until 2026-10-13 this row read "Not done": planned by the operator and not finished (2026-10-12) | Absent when audits A–C ran (H52); the completed video has not been reviewed by any audit |
-| 24 | Honest time statement | README "Time spent", PROCESS.md | — | Satisfied (estimate) | "**Estimated Project Duration:** Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production." An approximate overall estimate, not a precise measurement. The demo video was completed on 2026-10-13, so its production is included in the estimate, which the operator confirmed unchanged on that date (until then this row said the video was planned and not yet recorded). The README separately reports agent-session activity and says why it is not human working time | Disclosure satisfied; precise measurement not available; independent verification not performed (H40, H41) |
+| 23 | Optional 3–5 min screen recording | The video "Mail Risk Intelligence": an asset of the private GitHub Release `demo-v1.0`, linked from README "Demo video"; not a tracked file | No automated test. The author checked picture timing and sound against the source recordings; the operator reviewed and approved the final video (2026-10-13) | Completed, not delivered | Completed 2026-10-13: approximately 5 minutes 57 seconds (longer than the brief's suggested 3–5 minutes), narrated by the project author. Published 2026-10-13 in the private Release, so it can be opened only with access to the private repository; final delivery to the interviewer is pending. Until 2026-10-13 this row read "Not done": planned by the operator and not finished (2026-10-12) | Absent when audits A–C ran (H52); the completed video has not been reviewed by any audit |
+| 24 | Honest time statement | README "Development Time" (until 2026-10-13: "Time spent"), PROCESS.md, [ledger](AUDIT_CLOSURE.md#development-time) | — | Satisfied (estimate) | "**Estimated project duration: Approximately 8 hours.** This estimate includes planning, development, testing, code review, documentation, and demo video production." The README calls it "an approximate estimate, not precisely tracked time" (wording set by the operator on 2026-10-13; the figure is unchanged). The demo video was completed on 2026-10-13, so its production is included in the estimate, which the operator confirmed unchanged on that date (until then this row said the video was planned and not yet recorded). The agent-session activity, and why it is not human working time, was reported in the README until 2026-10-13 and is now kept in the ledger | Disclosure satisfied; precise measurement not available; independent verification not performed (H40, H41) |
 
 ## Things implemented beyond the brief
 
@@ -93,8 +95,8 @@ audits A–C established.
 | E12 | Orchestration robustness | Bounded queue, one deadline, restart recovery | Executed by C | H01–H04, H70; limits H35, H36 |
 | E13 | Extensible entity/relationship model | Shared schemas, structural rules | Coherent; heuristic identities, fixed predicates | H10, H13–H19 |
 | E14 | API design | Explicit actions, error contract, bounded uploads | Pass (A) | — |
-| D01 | Repository delivery (GitHub link or zip) | Private GitHub repository; all work since `633ddd1` is uncommitted | Access and handoff not verified | H51, H67 |
+| D01 | Repository delivery (GitHub link or zip) | Private GitHub repository; all work since `633ddd1` is uncommitted. *Status note, 2026-10-13:* the sentence before this note describes 2026-10-12, when the row was written. That work (the approved audit remediation) was committed as `ea6c588` on 2026-10-12 and pushed to `origin/main`; the documentation commits `48cf19f` and `ec4adf6` followed and were also pushed. `main` is based on `ec4adf6` before the documentation commit that carries this note | Access and handoff not verified | H51, H67 |
 | D02 | README sections | README | Pass | row 21 above |
 | D03 | PROCESS.md | PROCESS.md | Pass | row 22 above |
-| D04 | State honestly how long was spent | README "Time spent" (approximate overall estimate) | Disclosure satisfied; not independently verified; no precise measurement | H40, H41 |
-| O01 | Optional screen recording | Completed 2026-10-13: "Mail Risk Intelligence", approximately 5 minutes 57 seconds; stored locally, not delivered (row 23 above) | Absent when audits A–C ran ("planned, not yet recorded"); the completed video has not been independently reviewed | H52 |
+| D04 | State honestly how long was spent | README "Development Time" (approximate overall estimate; the section was "Time spent" until 2026-10-13) | Disclosure satisfied; not independently verified; no precise measurement | H40, H41 |
+| O01 | Optional screen recording | Completed 2026-10-13: "Mail Risk Intelligence", approximately 5 minutes 57 seconds; available in the private GitHub Release `demo-v1.0`; delivery to the interviewer pending (row 23 above) | Absent when audits A–C ran ("planned, not yet recorded"); the completed video has not been independently reviewed | H52 |

@@ -37,7 +37,7 @@ The screenshots are real captures of the running application in Recorded AI Repl
 14. [Engineering decisions and tradeoffs](#engineering-decisions-and-tradeoffs)
 15. [What I would improve with more time](#what-i-would-improve-with-more-time)
 16. [Demo video](#demo-video)
-17. [Time spent](#time-spent)
+17. [Development Time](#development-time)
 18. [Further reading](#further-reading)
 
 ## Key functionality
@@ -469,6 +469,8 @@ The full records, with alternatives and verification, are in
 
 ## Demo video
 
+**[▶ Watch Demo Video — Mail Risk Intelligence](https://github.com/SaadAmaria/mail-risk-intelligence/releases/download/demo-v1.0/Mail-Risk-Intelligence.mp4)**
+
 **Title:** Mail Risk Intelligence
 
 The demonstration video has been completed (2026-10-13).
@@ -477,45 +479,22 @@ The demonstration video has been completed (2026-10-13).
   Graph, Recorded AI Replay, and automatic checks without AI.
 - **Duration:** approximately 5 minutes 57 seconds.
 - **Narration:** by the project author.
-- **Completed is not delivered:** the video is currently stored locally. It has not been uploaded,
-  published or shared, it is not part of this repository, and no link to it exists yet.
+- **Availability:** the video is available through this private repository's GitHub Release
+  [`demo-v1.0`](https://github.com/SaadAmaria/mail-risk-intelligence/releases/tag/demo-v1.0)
+  (published 2026-10-13). The link above leads directly to the MP4 Release asset. Opening it needs a
+  GitHub account with access to this private repository; without that access GitHub answers "not
+  found". The video is a Release asset, not one of the repository's tracked files, and it has not
+  been published anywhere else.
+- **File:** `Mail-Risk-Intelligence.mp4`, SHA-256
+  `80D4B79E5F245D92A5DFBF3656EF584A3F25C28D9665EDA5459A7522534BCD91`.
 
-## Time spent
+## Development Time
 
-**Estimated Project Duration:** Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production.
+**Estimated project duration: Approximately 8 hours.**
 
-This is the operator's approximate overall project-effort estimate, not a precisely measured duration.
+This estimate includes planning, development, testing, code review, documentation, and demo video production.
 
-- **Not independently verified.** No time-tracking record exists, and nobody has checked the figure.
-- **The demo video has been completed** (see [Demo video](#demo-video)). Its production is included
-  in the overall estimate, which the operator confirmed unchanged on 2026-10-13. Until that date
-  this section said the video was planned and not yet recorded.
-- **Precise focused time: not available.** It was never measured.
-- **Confirmed elapsed work** is therefore not a human-hours figure. The only recorded data is the
-  agent-session activity below, which measures something different.
-
-Agent-session activity, measured separately, is a **different quantity**. It comes from the local
-Claude Code transcripts (user and assistant events, timestamps in UTC; local time is UTC+3):
-
-| Period | Events | First to last event | Sum of gaps of at most 5 min | Sum of gaps of at most 10 min |
-|---|---:|---|---:|---:|
-| 2026-10-11 | 4,221 | 13:21–22:28 local (9.1 h span) | 6.9 h | 7.4 h |
-| 2026-10-12, until 16:32 local | 513 | 15:19–16:32 local (1.2 h span) | 0.6 h | 0.6 h |
-| Both days | 4,734 | two sittings, 17 h apart | 7.5 h | 8.0 h |
-
-These figures include unattended agent runs (test suites, browser checks) and waiting. They exclude
-the operator's own review and reading, the independent Codex audits, and any work in other tools.
-They are therefore neither evidence for nor against the overall estimate. Either way the scope grew beyond
-the 5–6 hour guidance because of the added phases (graph redesign, security hardening, audits).
-
-*Correction, 2026-10-12:* an earlier version of this section covered only 2026-10-11 and said 4,199
-events. A recount of the same window (to 19:25 UTC) gives 4,201; the hour figures were unchanged at
-the stated precision. The earlier sentence "cannot be reconstructed reliably" stays true for
-**measured** focused time; the estimate above was added because the brief asks for one. Its wording
-was set by the operator on 2026-10-12 (an earlier same-day draft said "about 8 hours of total
-personal involvement").
-
-`PROCESS.md` records what was done, in what order, and what went wrong.
+*This is an approximate estimate, not precisely tracked time.*
 
 ## Further reading
 

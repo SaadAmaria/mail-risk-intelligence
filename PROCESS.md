@@ -1839,6 +1839,44 @@ authenticity.
   of 2026-10-12 to midday 2026-10-13; a span is not working time. The operator's approximate overall
   estimate of 8 hours, which includes video production, is unchanged.
 
+### 2026-10-13 — Documentation commit, private GitHub Release of the video, README time section (documentation only, **uncommitted**)
+
+- **Commit and push (factual note):** the documentation of the previous entry was committed as
+  `ec4adf6e7db96cf1dca38e0e301c49747b4d497e` ("docs: finalize demo video and submission
+  documentation", four documentation files) and pushed to `origin/main` as a fast-forward from
+  `48cf19f`, under the operator's explicit authorization. The README documentation test passed (6 of
+  6) immediately before the commit.
+- **Release (human decision, agent action):** the operator authorized publishing the approved video
+  as an asset of a GitHub Release in the private repository. Release "Mail Risk Intelligence", tag
+  `demo-v1.0` on `ec4adf6`, asset `Mail-Risk-Intelligence.mp4` (75,462,968 bytes). Checked after the
+  upload: GitHub's recorded digest and a copy downloaded back both equal the approved SHA-256; a
+  request without credentials is answered "not found"; the repository is still private; the MP4 is
+  not a tracked file.
+- **README:** the "Demo video" section gained a direct link to the Release asset and new
+  availability wording. The "Time spent" section was replaced, in the operator's words, by a short
+  "Development Time" section: approximately 8 hours, the same list of activities, and "an approximate
+  estimate, not precisely tracked time". The figure is unchanged.
+- **Evidence kept, not dropped:** the removed README text (the qualifications of the estimate, the
+  agent-session figures and the sentence that the scope grew beyond the 5–6 hour guidance) was moved
+  verbatim to `docs/AUDIT_CLOSURE.md`, section "Development time", because findings H39, H40 and H42
+  cite it.
+- **Reconciled:** the ledger's H39, H40, H42 and H52 rows (dated notes), its development-time
+  section and reader cautions; traceability rows 23, 24, D04 and O01 and the "Completed, not
+  delivered" definition. All 71 dispositions and the totals are unchanged.
+- **Two stale status lines, noted and not rewritten:** ledger row H67 and traceability row D01 still
+  said the audit-remediation work was uncommitted. Each keeps its original sentence and gained a
+  dated status note: the remediation was committed as `ea6c588` on 2026-10-12 and pushed to
+  `origin/main`, followed by the pushed documentation commits `48cf19f` and `ec4adf6`.
+- **Current status of the video** (supersedes the previous entry's "stored locally … not uploaded,
+  published or shared", which was true when written): complete; available in the private GitHub
+  Release; **final delivery to the interviewer pending**. H52 stays REQUIRES_USER_DECISION until the
+  interviewer's access or another delivery is confirmed (see also H51).
+- **Not verified:** how the link behaves in a browser (GitHub serves Release assets as downloads),
+  and access by anyone other than the operator's own account.
+- **Not done:** no application code, test, fixture, seed, environment or dependency change; no change
+  to the video; no Groq call; no change of repository visibility or collaborators. This pass is not
+  committed.
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->
