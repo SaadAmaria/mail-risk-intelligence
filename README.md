@@ -36,8 +36,9 @@ The screenshots are real captures of the running application in Recorded AI Repl
 13. [Security boundaries and limitations](#security-boundaries-and-limitations)
 14. [Engineering decisions and tradeoffs](#engineering-decisions-and-tradeoffs)
 15. [What I would improve with more time](#what-i-would-improve-with-more-time)
-16. [Time spent](#time-spent)
-17. [Further reading](#further-reading)
+16. [Demo video](#demo-video)
+17. [Time spent](#time-spent)
+18. [Further reading](#further-reading)
 
 ## Key functionality
 
@@ -466,6 +467,19 @@ The full records, with alternatives and verification, are in
 - Pagination and virtualisation for large mailboxes and graphs.
 - Tests of retry and rate-limit handling against a real provider.
 
+## Demo video
+
+**Title:** Mail Risk Intelligence
+
+The demonstration video has been completed (2026-10-13).
+
+- **What it shows:** the real application, live LLM integration, the two AI agents, the Knowledge
+  Graph, Recorded AI Replay, and automatic checks without AI.
+- **Duration:** approximately 5 minutes 57 seconds.
+- **Narration:** by the project author.
+- **Completed is not delivered:** the video is currently stored locally. It has not been uploaded,
+  published or shared, it is not part of this repository, and no link to it exists yet.
+
 ## Time spent
 
 **Estimated Project Duration:** Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production.
@@ -473,9 +487,9 @@ The full records, with alternatives and verification, are in
 This is the operator's approximate overall project-effort estimate, not a precisely measured duration.
 
 - **Not independently verified.** No time-tracking record exists, and nobody has checked the figure.
-- **The demo video has not been recorded yet.** It is planned. Its production time is part of the
-  overall estimate as *expected* effort, not work already done, and no video is delivered with this
-  repository.
+- **The demo video has been completed** (see [Demo video](#demo-video)). Its production is included
+  in the overall estimate, which the operator confirmed unchanged on 2026-10-13. Until that date
+  this section said the video was planned and not yet recorded.
 - **Precise focused time: not available.** It was never measured.
 - **Confirmed elapsed work** is therefore not a human-hours figure. The only recorded data is the
   agent-session activity below, which measures something different.

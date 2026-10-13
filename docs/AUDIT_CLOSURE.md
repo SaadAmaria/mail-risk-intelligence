@@ -81,7 +81,7 @@ inspected by C, not run; **[author]** = run or written by the implementing agent
 | H37 | A §4; B §2 | unspecified | Cross-email findings are recomputed on every read; poor scaling beyond a small mailbox | ACCEPTED_DOCUMENTED_LIMITATION | README trade-off "derived at read time … costs recomputation on each read (fine at this size)"; README future work names pagination [C: inspected] | — |
 | H38 | A §§4,9; B §§2,10 | P3 | Large UI components and the custom graph increase maintenance burden | ACCEPTED_DOCUMENTED_LIMITATION | e.g. `InvestigationPane.tsx`, `web/src/components/graph/*`; B §10: "Accept for submission; simplify during future maintenance" [C: inspected] | No pre-submission redesign |
 | H39 | A §§2,4,9; B §§2,7 | P2 evaluation concern (A E01) | Weak scope compression for a short take-home | ACCEPTED_DOCUMENTED_LIMITATION (an evaluation judgment, not a product defect; cannot be undone after the fact) | README "Time spent": scope grew beyond the 5–6 h guidance; the operator's estimate is about 8 h [author] | Add no further scope |
-| H40 | A §§2,3,7,10; B §§3,7,10 | P2 | The requested actual development duration was absent | NOT_INDEPENDENTLY_VERIFIED. Disclosure **SATISFIED** by the operator's approximate overall estimate; precise focused-time measurement **NOT AVAILABLE**; independent verification of duration **NOT PERFORMED**. Not an open product defect or unmet requirement | README "Time spent": "Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production", stated as an approximate estimate. The demo video is **planned, not yet recorded**, so its share is expected effort, not completed work. Agent-session activity is reported separately [author] | None required; the figure cannot be independently verified |
+| H40 | A §§2,3,7,10; B §§3,7,10 | P2 | The requested actual development duration was absent | NOT_INDEPENDENTLY_VERIFIED. Disclosure **SATISFIED** by the operator's approximate overall estimate; precise focused-time measurement **NOT AVAILABLE**; independent verification of duration **NOT PERFORMED**. Not an open product defect or unmet requirement | README "Time spent": "Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production", stated as an approximate estimate. Until 2026-10-13 this row said the demo video was "planned, not yet recorded", so its share was expected effort. *Resolution note, 2026-10-13:* the video has been completed (see H52); its production is included in the estimate, which the operator confirmed unchanged. Agent-session activity is reported separately [author] | None required; the figure cannot be independently verified |
 | H41 | A §8; B §§3,7,11 | P3 | Honest inability to measure was conflated with partial completion of the duration requirement | NOT_INDEPENDENTLY_VERIFIED (corrected 2026-10-12) | Traceability row 24 now reads "Satisfied (estimate)": the disclosure is made through the approximate estimate, kept separate from "Done" and from any measurement claim [author] | Re-verify |
 | H42 | A §§2,8; B §7 | unspecified | 5–6 hours is guidance, not a hard cutoff; actual compliance unknown | ACCEPTED_DOCUMENTED_LIMITATION | README states the scope exceeded the guidance; the ≈8 h estimate is above it [author] | No invented deadline violation |
 | H43 | A §§2,7,12; B §2 | unspecified | Workflow and historical runtime claims cannot authenticate themselves | NOT_INDEPENDENTLY_VERIFIED | PROCESS labels transcribed early rounds [C: inspected] | Keep the provenance qualification |
@@ -93,7 +93,7 @@ inspected by C, not run; **[author]** = run or written by the implementing agent
 | H49 | A §§1,7,12; B §§2,9 | unspecified in C (B §10 lists install acceptance under "P2 confidence gap") | Clean-clone installation and first-run startup not independently verified | NOT_INDEPENDENTLY_VERIFIED | Author fresh-clone check recorded in PROCESS Phase 8 ("Clean-room verification") [author]; no audit ran an install | An independent clean-clone run would close it |
 | H50 | A §§2,6; B §§5,7 | unspecified in C (B §10 lists restart acceptance under "P2 confidence gap") | Real restart and disk durability not independently re-run | NOT_INDEPENDENTLY_VERIFIED | The author ran the file-writing suites (storage, seed, startup, analysis storage, analysis service, API recovery, replay) on 2026-10-12 within the full server run [author]; C excluded exactly those 7 suites; no independent real restart | — |
 | H51 | A §§2,7,10; B §§2,9,10 | P2 handoff risk | Interviewer access to the private repository and setup guide is unknown | REQUIRES_USER_DECISION | `web/src/lib/docs.ts` links the private GitHub README | Grant access or supply a permitted zip at handoff |
-| H52 | A §§2,8; B §§2,7,10 | unspecified | The optional screen recording is absent | REQUIRES_USER_DECISION | Operator, 2026-10-12: a video is planned and **not finished** | Do not claim a recording until it exists |
+| H52 | A §§2,8; B §§2,7,10 | unspecified | The optional screen recording is absent | REQUIRES_USER_DECISION (disposition unchanged; 2026-10-13: the recording now exists, and its delivery is the remaining operator decision) | Operator, 2026-10-12: a video is planned and **not finished**. *Resolution note, 2026-10-13:* the video "Mail Risk Intelligence" has been **completed**: approximately 5 minutes 57 seconds, narrated by the project author, reviewed and approved by the operator. It is stored locally, is not part of the repository, and has **not been delivered, uploaded or published** [author; not seen by any audit] | Until 2026-10-13: do not claim a recording until it exists. Since then: do not claim delivery or give a link until the operator confirms a sharing location |
 | H53 | A §6; B §8 | unspecified | Fake-LLM tests prove application behaviour, not model quality | ACCEPTED_DOCUMENTED_LIMITATION | README names the scripted clients [C: inspected] | — |
 | H54 | A §6; B §8 | unspecified | Constructed analyses and placeholder quotes bypass grounding; the test title "legitimate relationships" overclaims | DEFERRED_NONBLOCKING_IMPROVEMENT | `relationship-grounding.test.ts:52` "legitimate relationships and their quotes are preserved exactly" keeps `sent_email_to` on a transfer quote: it proves preservation, not legitimacy. `risk-entities.test.ts`, `risk-account-identity.test.ts`, `graph-aggregation.test.ts` insert constructed analyses (placeholder quote `"x"`) on purpose [C: inspected] | Rename the test at the next code change (test edits are outside this documentation-only pass); read those suites as mechanics tests |
 | H55 | A §6; B §§2,8 | unspecified | jsdom viewport tests do not establish browser layout or touch behaviour | ACCEPTED_DOCUMENTED_LIMITATION | README separates jsdom from manual browser checks [C: inspected] | — |
@@ -132,6 +132,10 @@ independently verified). C's 2 `OPEN_DEFECT` rows changed after the operator sup
 H40's disclosure is now satisfied by the approximate estimate (not measured, not independently
 verified), and H41 was corrected. Neither counts as open. Both await re-verification.
 
+*Update, 2026-10-13:* the optional screen recording that H52 found absent has been completed (see
+the H52 row). No disposition and no count above changed: the 71 findings and their totals stand as
+reconciled on 2026-10-12, and H52 stays a user decision because the video has not been delivered.
+
 ### The 17 entries C found missing
 
 | ID | Disposition |
@@ -166,12 +170,15 @@ verified), and H41 was corrected. Neither counts as open. Both await re-verifica
 | Development-time disclosure | **SATISFIED** through the operator's approximate overall estimate |
 | Precise focused-time measurement | **NOT AVAILABLE** (never measured) |
 | Independent verification of duration | **NOT PERFORMED** |
-| Demo video | **PLANNED, NOT YET COMPLETED**; the estimate counts its production as expected effort |
+| Demo video | **COMPLETED** on 2026-10-13 ("Mail Risk Intelligence", approximately 5 minutes 57 seconds); **NOT DELIVERED** (stored locally; not uploaded, published or shared). The estimate includes its production |
 
-- **Estimate versus confirmed work:** the 8 hours is an overall estimate that includes video
-  production not yet done. No human working time is confirmed by any record. The agent-session
-  activity in the README is measured from the local Claude Code transcripts, but it is not human
-  working time and neither supports nor contradicts the estimate.
+- **Estimate versus confirmed work:** the 8 hours is the operator's approximate overall estimate and
+  includes the video's production. The operator confirmed it unchanged on 2026-10-13, after the video
+  was finished; it was not replaced by another figure. No human working time is confirmed by any
+  record. The agent-session activity in the README is measured from the local Claude Code
+  transcripts, but it is not human working time and neither supports nor contradicts the estimate.
+- *History, 2026-10-13:* until this date the table above classified the demo video as "PLANNED, NOT
+  YET COMPLETED" and this section described its production as "not yet done".
 - *History:* an earlier same-day version of this section (2026-10-12) said "about 8 hours of total
   personal involvement" and classified the measured duration as "UNMET". The operator then set the
   wording above, and the duration is no longer counted as unmet; see PROCESS.md.
@@ -251,8 +258,10 @@ code before it was fixed.
 - A merged entity is the product of conservative rules, not a guarantee.
 - A passing test suite shows that the tests pass, not that an audit is satisfied. The author's test
   totals (server 701, web 281) are not independent results; audit C executed web 281 and server 563.
-- About 8 hours is the operator's approximate overall estimate. It includes a demo video that has not
-  been recorded yet, and it is neither a measurement nor independently verified.
+- About 8 hours is the operator's approximate overall estimate. It includes the production of the
+  demo video (completed 2026-10-13), and it is neither a measurement nor independently verified.
+- A completed demo video is **not** a delivered one. The video is stored locally; it has not been
+  uploaded, published or shared, and no audit has seen it.
 
 ## Appendix: the ledger before reconciliation (superseded 2026-10-12, kept verbatim)
 
@@ -262,7 +271,8 @@ it, all corrected above or in the later-review tables: row 5's "now shown on eve
 surface" (see D-P3a); "Development time: DOCUMENTED_LIMITATION" (see H40/H41); and "Items in the audit
 reports not relayed … OPEN (unknown)" (the 17 rows above). Its "FIXED_AND_TESTED" for
 `relationship-grounding.test.ts` relied on a whole-file failure at HEAD, which was an import failure
-(H57).
+(H57). Its "Optional screen recording … Not produced" was true when written; the video was completed
+on 2026-10-13 and has not been delivered (H52).
 
 Two independent audits (by a separate AI reviewer, "Codex") were run on the submitted build, after
 the author's own acceptance checks. This file records every finding I had and what became of it.

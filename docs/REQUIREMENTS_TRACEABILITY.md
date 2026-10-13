@@ -2,15 +2,22 @@
 
 Each explicit requirement of [`candidate_task_brief.md`](../candidate_task_brief.md) mapped to where
 it is implemented, how it was tested, and what is not covered. **24 items: 20 Done, 1 Partial
-(15), 1 Exempt (19), 1 Not done (23), 1 Satisfied (estimate) (24).** Items 16–24 split the brief's tech
+(15), 1 Exempt (19), 1 Completed, not delivered (23), 1 Satisfied (estimate) (24).** Items 16–24 split the brief's tech
 constraints and deliverables; none is an invented requirement. Status words are literal and
 describe **implementation as assessed by the author**:
 **Done** = implemented and exercised by an automated test or a recorded real-browser check run by
 the author; **Partial** = implemented with a stated gap; **Exempt** = the brief itself excludes it,
-so it was not built (not a completed feature); **Not done** = absent; **Satisfied (estimate)** = the
+so it was not built (not a completed feature); **Not done** = absent (no row has this status since
+2026-10-13); **Completed, not delivered** = the item exists and was approved by the operator, but it
+has not been handed over and is not in the repository; **Satisfied (estimate)** = the
 disclosure is made through the operator's approximate estimate, which is not a precise measurement
 and was not independently verified; it is kept apart from "Done". "20 Done" is therefore 20
 implementation claims, not 20 independent certifications.
+
+*Update, 2026-10-13:* row 23 was "Not done" until this date, because the optional screen recording
+did not exist. The video "Mail Risk Intelligence" has since been completed, so the row is now
+"Completed, not delivered". Completion is not delivery: the video has not been uploaded, published or
+shared. Rows 24 and O01 were updated to match.
 
 *Correction, 2026-10-12:* row 24 was "Partial" until this date. That merged an honest inability to
 measure with partial completion (audit finding H41). It was briefly "Estimate" (same day) and is now
@@ -48,8 +55,8 @@ Paths are relative to the repository root. Test files named without a directory 
 | 20 | Tests | `server/src/__tests__/`, `web/src/**/*.test.*` | `npm test` | Done | Server 38 files / 701 tests, web 24 files / 281 tests (author-executed 2026-10-12, Phase 9D delta); no test calls a provider; no end-to-end suite in CI (real-browser checks were manual scripts) | C executed web 24 files / 281 tests and server 31 files / 563 tests; 7 file-writing server suites were excluded (H58) |
 | 21 | `README.md`: setup/run, architecture, decisions and tradeoffs, what next | [`README.md`](../README.md) | Commands verified from a fresh clone by the author (PROCESS.md, Phase 8); `web/src/lib/docs.test.ts` checks anchors, links, claims | Done | | Inspected; fresh-clone commands not re-run by an audit (H49) |
 | 22 | `PROCESS.md`: AI workflow, prompting, where the human corrected the agent | [`PROCESS.md`](../PROCESS.md) | — | Done | Early planning rounds are transcribed summaries, not verbatim logs (stated in the file) | Inspected; historical claims cannot authenticate themselves (H43) |
-| 23 | Optional 3–5 min screen recording | — | — | Not done | Not part of the repository. A video is planned by the operator and not finished (2026-10-12) | Absent (H52) |
-| 24 | Honest time statement | README "Time spent", PROCESS.md | — | Satisfied (estimate) | "**Estimated Project Duration:** Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production." An approximate overall estimate, not a precise measurement. The demo video is planned and not yet recorded, so that part is expected effort. The README separately reports agent-session activity and says why it is not human working time | Disclosure satisfied; precise measurement not available; independent verification not performed (H40, H41) |
+| 23 | Optional 3–5 min screen recording | Outside the repository: the video "Mail Risk Intelligence", stored locally by the operator | No automated test. The author checked picture timing and sound against the source recordings; the operator reviewed and approved the final video (2026-10-13) | Completed, not delivered | Completed 2026-10-13: approximately 5 minutes 57 seconds (longer than the brief's suggested 3–5 minutes), narrated by the project author. Not part of the repository; not uploaded, published or shared. Until 2026-10-13 this row read "Not done": planned by the operator and not finished (2026-10-12) | Absent when audits A–C ran (H52); the completed video has not been reviewed by any audit |
+| 24 | Honest time statement | README "Time spent", PROCESS.md | — | Satisfied (estimate) | "**Estimated Project Duration:** Approximately 8 hours, including planning, development, testing, code review, documentation, and demo video production." An approximate overall estimate, not a precise measurement. The demo video was completed on 2026-10-13, so its production is included in the estimate, which the operator confirmed unchanged on that date (until then this row said the video was planned and not yet recorded). The README separately reports agent-session activity and says why it is not human working time | Disclosure satisfied; precise measurement not available; independent verification not performed (H40, H41) |
 
 ## Things implemented beyond the brief
 
@@ -90,4 +97,4 @@ audits A–C established.
 | D02 | README sections | README | Pass | row 21 above |
 | D03 | PROCESS.md | PROCESS.md | Pass | row 22 above |
 | D04 | State honestly how long was spent | README "Time spent" (approximate overall estimate) | Disclosure satisfied; not independently verified; no precise measurement | H40, H41 |
-| O01 | Optional screen recording | — | Absent; planned, not yet recorded | H52 |
+| O01 | Optional screen recording | Completed 2026-10-13: "Mail Risk Intelligence", approximately 5 minutes 57 seconds; stored locally, not delivered (row 23 above) | Absent when audits A–C ran ("planned, not yet recorded"); the completed video has not been independently reviewed | H52 |

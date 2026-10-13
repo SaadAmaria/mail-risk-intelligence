@@ -1760,6 +1760,85 @@ authenticity.
 - **Not changed:** runtime code, tests, fixtures, seed, environment, dependencies; DECISIONS.md (it
   has no duration statement); the ledger appendix (pre-reconciliation record).
 
+### 2026-10-12 to 2026-10-13 — Demo video "Mail Risk Intelligence" and documentation update (documentation only, **uncommitted**)
+
+- **Prompt (human):** produce the optional screen recording as a narrated video, one part at a time,
+  each part reviewed before the next; audit the timing of the assembled film; then, once the final
+  video was approved, bring the documentation in line. No application code, test, fixture or
+  dependency change. The video and its working files are outside the repository. The production
+  details below are summarised from the agent's session notes; the timing audit, the fix and this
+  documentation pass ran in a Claude Code session on `claude-opus-5-5`.
+- **Human decisions:** the operator wrote and recorded the narration in their own voice; approved or
+  rejected each part; authorized the live analyses against Groq and capped their number; set the
+  storytelling rule for the Scene 4/5 fix (below); approved the final video; chose the title "Mail
+  Risk Intelligence" and the file name `Mail-Risk-Intelligence.mp4`; and kept the approximate 8-hour
+  estimate unchanged.
+- **How it was made (agent):** an isolated clone of commit `48cf19f` on separate ports with a fresh
+  database, captured frame by frame in headless Edge. Callouts are drawn at rectangles measured from
+  the live page; no application text is redrawn. The narration is the operator's recordings with one
+  linear gain per file. Parts: introduction, problem and solution, product demo (E004, recorded
+  replay), knowledge graph, engineering and closing. The engineering part contains one live take on a
+  new fictional email (2 provider requests, Agent A then Agent B), shown in the application and in
+  the browser's own developer tools, followed by a real restart without the key and automatic checks
+  on a second fictional email. Across two rehearsals and that take, 6 provider requests were made. A
+  local stand-in model was used only to rehearse the recording pipeline; none of its output is in the
+  video.
+- **Corrections after operator feedback (dated here, not silent):**
+  1. The first narrated introduction showed the application before the narration named it. Rejected
+     by the operator and re-cut.
+  2. The account comparison (6621 against 9902) appeared one part too early and was held back for the
+     product demo.
+  3. Knowledge graph part: the narration says the same supplier appears in different emails, but in
+     the recorded state the supplier had a single source message. Re-recorded with E009's automatic
+     checks run on camera, so the sender address lists two source messages.
+  4. Live rehearsals: the first returned no person and no relationship (validation dropped five
+     unsupported claims) although the narration mentions both; the fictional email was revised. The
+     second accepted a relationship whose quote meant the opposite ("Do not use my old account …"):
+     validly quoted, wrong in meaning, and not flagged by the application. This is the documented
+     limit that relationship meaning is model-asserted. The sentence was reworded before the final
+     take.
+  5. A diagram label used the spelling "organisations"; changed to "organizations".
+  6. Timing audit of the assembled film (2026-10-13): the Knowledge Graph was named about 4.4 s
+     before it appeared, while the picture opened E009 and ran its checks. The operator's rule: while
+     the narration is about the two emails, show the two emails; when it says "Knowledge Graph", show
+     the graph; no unrelated action under either sentence. Fix: a 3.60 s pause in the narration,
+     filled with room tone cut from the operator's own recordings, during which E009 is opened and
+     its automatic checks run; one 8-frame dissolve between two takes; static holds on unchanged
+     screens. Rejected alternatives: a picture-only re-time without a pause (the checks would run
+     under narration) and a pause of digital silence (an audible drop-out).
+- **Verification actually run (author):** the new sound track is sample-identical to the previous
+  one before the pause and, 3.60 s later, after it; the introduction, the problem and solution part,
+  and the engineering and closing part are identical frame by frame; local speech recognition of the final file finds every
+  sentence once, in order. The agent cannot listen to audio; the operator reviewed the final video
+  and approved it.
+- **Result:** "Mail Risk Intelligence", 357.07 s (approximately 5 minutes 57 seconds), 1920×1080,
+  narrated by the project author. `Mail-Risk-Intelligence.mp4` is a byte-identical copy of the
+  approved render (SHA-256 `80d4b79e5f245d92a5dfbf3656ef584a3f25c28d9665eda5459a7522534bcd91`).
+  **Completed, not delivered:** the file is stored locally by the operator. It is not in the
+  repository and has not been uploaded, published or shared.
+- **Known limitations, reported before the approval:** the highlight for "First, Agent A" arrives
+  about 0.8 s after the name; the third safeguard tile is readable for about 0.7 s; about 1.1 s of
+  empty canvas precedes the pipeline diagram; the second fictional email and its rules-only verdict
+  are on screen before the narration mentions them (the real order of events). The video is longer
+  than the brief's suggested 3–5 minutes. No independent audit has seen it.
+- **Documentation updated in this pass:** README (new "Demo video" section; the "Time spent" bullet);
+  `docs/AUDIT_CLOSURE.md` (dated resolution notes on H40 and H52, the development-time section, the
+  reader cautions and a note on the appendix; all 71 dispositions and the totals are unchanged);
+  `docs/REQUIREMENTS_TRACEABILITY.md` (row 23 from "Not done" to "Completed, not delivered"; rows 24
+  and O01). The estimate statement itself is unchanged.
+- **Supersedes, does not erase:** the statements in the Phase 8 entry, the ledger reconciliation
+  entry and the H40/H41 entry above that there is no screen recording or that the video is not
+  finished. They were true when written and are left as they are.
+- **Corrected the same day:** an earlier documentation pass on 2026-10-13 used a longer video title
+  and the file name `Mail-Risk-Intelligence-AI-Engineering-Demo.mp4`. The operator then set the title
+  "Mail Risk Intelligence". The earlier copies are kept as backups.
+- **Not done:** no application code, test, fixture, seed, environment or dependency change; no Groq
+  call in the audit, fix or documentation passes; no commit, push, upload or publication.
+  DECISIONS.md is unchanged (no architectural decision was made).
+- **Time:** human focused time not measured. By file timestamps the video work ran from the evening
+  of 2026-10-12 to midday 2026-10-13; a span is not working time. The operator's approximate overall
+  estimate of 8 hours, which includes video production, is unchanged.
+
 ---
 
 <!-- Append new entries below. Format: date, prompt, agent output, human correction, decision, observed result. -->
