@@ -31,8 +31,16 @@ alternatives raised retrospectively.
 
 Maintain:
 
-- `PROCESS.md` for chronological development and AI collaboration history.
+- `PROCESS.md`: the current Engineering Delivery & Acceptance Report. Keep it accurate; update it
+  when a material event changes the delivery status, the evidence or an acceptance statement.
+- `docs/PROCESS_HISTORY.md`: the preserved historical record (the chronological development and AI
+  collaboration log up to 2026-10-13). It is an archive: do not rewrite, reorder, extend or delete
+  its content.
 - `docs/DECISIONS.md` for significant architectural decision records.
+
+Document future material events accurately and with their date in `PROCESS.md`, and in
+`docs/DECISIONS.md` or `docs/AUDIT_CLOSURE.md` where they belong. Never rewrite, backdate or falsify
+the historical archive to accommodate them.
 
 Use concise entries. Group related minor decisions.
 

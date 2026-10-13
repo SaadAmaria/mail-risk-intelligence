@@ -15,8 +15,14 @@ Significant architectural decisions for the Mail Risk Intelligence take-home.
 - Nothing here claims an option is universally best; each is judged for this assignment
   (5–6 focused hours, reviewer-run on an unknown machine, no paid API key).
 
-Planning rounds referenced below are logged in `PROCESS.md`: Round 1 (independent
+Planning rounds referenced below are logged in `PROCESS_HISTORY.md`: Round 1 (independent
 analysis), Round 2 (cross-review), Round 3 (four mandatory corrections → Freeze V1.1).
+
+*Reference note, 2026-10-13:* the chronological development log these records cite was named
+`PROCESS.md` when they were written. It was archived unchanged as
+[`PROCESS_HISTORY.md`](PROCESS_HISTORY.md) when `PROCESS.md` became the Engineering Delivery &
+Acceptance Report. Only the file name in those 19 references was changed; no decision, alternative,
+verification or approval statement was edited.
 
 ---
 
@@ -29,7 +35,7 @@ analysis), Round 2 (cross-review), Round 3 (four mandatory corrections → Freez
   Next.js deviates from the stated Express/FastAPI constraint.
 - **Trade-offs/limitations:** gives up Python's PDF/email ecosystem conveniences;
   Node-specific install concerns (see D2, D12).
-- **Verification:** Phase 0 typechecks, build, and dev boot executed (see D13 and PROCESS.md).
+- **Verification:** Phase 0 typechecks, build, and dev boot executed (see D13 and PROCESS_HISTORY.md).
   No feature-level evidence yet.
 - **Proposed by:** Claude (Round 1). **Status:** approved by candidate with Freeze V1.1;
   independent reviewer agreed with this foundation in Round 2.
@@ -174,7 +180,7 @@ analysis), Round 2 (cross-review), Round 3 (four mandatory corrections → Freez
   source; (3) older Node versions fail on the flag rather than degrading gracefully.
 - **Verification (executed):** clean-copy `npm ci`, typecheck, `vite build`, and
   `npm run dev` boot with health via direct and proxied calls (Phase 0 verification, see
-  PROCESS.md). Older Node versions were **not** tested.
+  PROCESS_HISTORY.md). Older Node versions were **not** tested.
 - **Proposed by:** Claude. **Status:** explicitly approved by the candidate on 2026-10-11;
   applies to this take-home, not as a general production recommendation.
 
@@ -190,7 +196,7 @@ analysis), Round 2 (cross-review), Round 3 (four mandatory corrections → Freez
 - **Trade-offs:** loopback-only means no LAN access for mobile-device testing unless `HOST`
   is set. Using `127.0.0.1` in the proxy avoids an IPv6 `localhost` mismatch with an
   IPv4-only listener.
-- **Verification:** see the Phase 0 closure entry in PROCESS.md for what was executed.
+- **Verification:** see the Phase 0 closure entry in PROCESS_HISTORY.md for what was executed.
 - **Proposed by:** independent reviewer (findings); implemented by Claude.
   **Status:** authorized by the candidate.
 
@@ -211,7 +217,7 @@ original choices are not rewritten into hindsight:
 - **Verification (executed)** — tests/commands actually run after the correction.
 
 Test counts: the first Phase 1 pass ended at 80 tests in 6 files (all passing at that time).
-After the corrective round the suite is 138 tests in 8 files, all passing (see PROCESS.md).
+After the corrective round the suite is 138 tests in 8 files, all passing (see PROCESS_HISTORY.md).
 Alternatives marked "considered" were considered conceptually in the planning rounds or the
 review; **none was benchmarked or trialled** unless a record says so explicitly.
 
@@ -379,7 +385,7 @@ review; **none was benchmarked or trialled** unless a record says so explicitly.
   chronological; unparseable dates become `null` with a warning. For PDF-sourced text only,
   the header block ends at the first non-header line, because pdf.js drops blank lines.
 - **Found by test:** my first PDF test assumed a blank line would survive extraction; it did
-  not (see PROCESS.md), so strict detection correctly refused to guess. The lenient rule is
+  not (see PROCESS_HISTORY.md), so strict detection correctly refused to guess. The lenient rule is
   a correction to that false assumption.
 - **Alternatives:** **(retrospective)** keep raw date strings and add an epoch column;
   apply lenient splitting to pasted text as well (rejected: increases false header detection
@@ -452,12 +458,12 @@ All Phase 2 records are **contemporaneous** (written 2026-10-11 while implementi
 **implemented within the authorized Phase 2 scope; awaiting independent review** unless a record
 says otherwise. "Verification" names only what was actually executed: 244 deterministic tests in
 15 files (all passing), plus the small live Groq run and real-process checks listed in
-PROCESS.md. Alternatives were considered conceptually; **none was benchmarked**.
+PROCESS_HISTORY.md. Alternatives were considered conceptually; **none was benchmarked**.
 
 **Test provenance (stated once, applies to every record below):** every agent, validation,
 orchestration, retry, recovery and health test uses a scripted `FakeLlm` or a scripted `fetch`;
 **no automated test contacts a provider**. The only real provider traffic in all of Phase 2 was
-one manual run of 6 calls with synthetic emails (7,007 tokens), recorded in PROCESS.md. After
+one manual run of 6 calls with synthetic emails (7,007 tokens), recorded in PROCESS_HISTORY.md. After
 the quality-gate round the suite is 292 tests in 16 files (the 244 quoted above were the count
 before that round).
 
@@ -548,7 +554,7 @@ compatibility where practical; no automatic multi-provider fallback chain.
 - **Limitations:** grounding is transitive (B is checked against A's snippets, not the raw
   email, as designed), so facts A failed to select cannot be cited; a model that follows an
   injected instruction *and* quotes real text is not detected here (see D27).
-- **Verification (executed):** 14 Agent B tests (see PROCESS.md for the list).
+- **Verification (executed):** 14 Agent B tests (see PROCESS_HISTORY.md for the list).
 
 ## D25. Orchestration states, outcomes and persisted invariants
 
@@ -806,7 +812,7 @@ qualifications on 2026-10-11**; the qualifications are recorded verbatim-in-subs
   consistent); a changed account can be legitimate; legal-suffix differences are ignored in
   names; multiple distinct accounts in one document are treated as ambiguous and nothing is
   claimed; the 2x threshold is my judgment; O(n^2) at read time (fine for tens of emails).
-- **Verification (executed):** 17 cross-email tests (see PROCESS.md).
+- **Verification (executed):** 17 cross-email tests (see PROCESS_HISTORY.md).
 
 **Quality-gate additions (D37):** the 2x rule is documented in the finding itself as a size
 heuristic ("not evidence of fraud: a larger invoice can be legitimate"; `values.heuristic: true`).
@@ -1197,7 +1203,7 @@ action, D40); (c) UTC date display; (d) every poll refetches the list and a 500-
   stubbed where jsdom lacks them. No `@testing-library/jest-dom` (not approved), so assertions use
   plain DOM properties. Real-browser verification is a script outside the repository (CDP over
   Node's built-in WebSocket against Edge), not shipped.
-- **Trade-off:** the browser script is not part of CI; its results are recorded in PROCESS.md.
+- **Trade-off:** the browser script is not part of CI; its results are recorded in PROCESS_HISTORY.md.
 
 ## D54. Phase 5 visual gate: confirmation for a forced re-run; every displayed date says UTC
 
@@ -1348,7 +1354,7 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
   email was sent; the action "Replay recorded analysis" with the notice "This uses a previously
   recorded AI response. No email is sent to an AI provider."; no button at all for a message with
   no recording; the health pill says recorded analyses are available and never "reachable".
-- **Verification (executed):** copy and component tests; real-browser smoke (see PROCESS.md).
+- **Verification (executed):** copy and component tests; real-browser smoke (see PROCESS_HISTORY.md).
 
 ## D64. Recorder publication is incremental, explicit and atomic (corrects D61)
 
@@ -1359,7 +1365,7 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
   write new files under non-colliding names; replace `index.json` last by one atomic rename;
   remove superseded files only afterwards; keep the manifest sorted by id.
 - **Alternatives:** silent merge, automatic cleanup of unusable entries, per-run manifests (all
-  rejected, see PROCESS.md).
+  rejected, see PROCESS_HISTORY.md).
 - **Trade-offs:** an operator must resolve an unusable existing entry deliberately; a stale
   recording therefore blocks adding others until it is overwritten or removed.
 - **Verification (executed):** 15 new tests including crash-before-publication and
@@ -1389,7 +1395,7 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
   a larger review surface); re-running E004 until the result looked better (rejected: best-of-N
   without disclosure; the fixture records attempt 1 of 1); hand-writing fixtures (rejected: would not
   be genuine).
-- **Evidence (executed, see PROCESS.md):** 2 real completions, no repairs or retries, status
+- **Evidence (executed, see PROCESS_HISTORY.md):** 2 real completions, no repairs or retries, status
   `complete`, AI medium / rules medium / final medium; digest reproduced by the recorder and again
   independently; 44/44 browser checks; 0 observed outbound connects from the backend during replay.
 - **Limitations and risks:**
@@ -1417,11 +1423,11 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
   an unverified free-tier budget, and nothing published until all four finish); editing or choosing
   among several captures (rejected: not genuine); fixing the snippet clipping first (rejected for
   now: it would stale existing fixtures and was outside the authorization).
-- **Evidence (executed, see PROCESS.md):** 2 real completions, no repairs or retries, status
+- **Evidence (executed, see PROCESS_HISTORY.md):** 2 real completions, no repairs or retries, status
   `complete`, AI high / rules medium / final high; digest reproduced by the recorder and again
   independently; E004 byte-identical before and after; 15/15 browser checks.
 - **Limitations and risks:**
-  - The cited evidence is a mid-word-clipped rule snippet (see PROCESS.md); it is verified but
+  - The cited evidence is a mid-word-clipped rule snippet (see PROCESS_HISTORY.md); it is verified but
     reads as truncated.
   - A single capture says nothing about run-to-run variance.
   - Fixtures are bound to the current prompts, parser and seed text (`extract-v1+risk-v1`); any
@@ -1443,7 +1449,7 @@ finished LIVE analysis, even with `force`; (d) no bulk replay (per instruction).
   instruction was to preserve the actual output); skipping a benign example (rejected: without it
   the demo shows only positive findings); changing the "No risk found" label first (deferred: a
   copy change is outside this commit and does not alter any fixture).
-- **Evidence (executed, see PROCESS.md):** 2 real completions, no repairs or retries, status
+- **Evidence (executed, see PROCESS_HISTORY.md):** 2 real completions, no repairs or retries, status
   `complete`, AI none / rules none / final none; digest reproduced by the recorder and again
   independently; E001 and E004 byte-identical before and after; browser checks passed; persistence
   across reload and a backend restart without re-running.
@@ -1510,7 +1516,7 @@ defined in the project records.
 
 ## D72. Option B (automatic-checks-only action) is feasible without a provider call; deferred to 7B.3
 
-- **Finding:** see PROCESS.md. In recorded-demo mode the existing reprocess endpoint on an
+- **Finding:** see PROCESS_HISTORY.md. In recorded-demo mode the existing reprocess endpoint on an
   unrecorded message ends `degraded`/`rules` with no provider call (`not_recorded`), and its
   deterministic extraction supplies header-derived graph nodes.
 - **Constraint:** the action must be offered only when no live provider is configured, because the
@@ -1783,7 +1789,7 @@ engineering choices below are Claude's, pending review.
 
 - **Context:** a simple cross-origin POST executes its side effects regardless of CORS; the 7C audit
   reproduced a provider call from a `text/plain` POST.
-- **Selected:** a guard before the body parser and all routes (see PROCESS.md for the policy): trusted
+- **Selected:** a guard before the body parser and all routes (see PROCESS_HISTORY.md for the policy): trusted
   origin allow-list (`CORS_ORIGIN`), same-origin on a loopback or listed host, no-Origin allowed unless
   the browser marks the request cross-/same-site, JSON-only bodies (multipart only for upload), 403/415
   before any side effect.

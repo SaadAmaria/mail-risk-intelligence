@@ -386,8 +386,9 @@ npm run typecheck   # all workspaces
 npm run build       # production build of the frontend
 ```
 
-Last executed **by the author** (2026-10-12, Phase 9D delta): server 38 files / 701 tests, web 24
-files / 281 tests, typecheck clean. The independent historical audit executed web 24 files / 281
+Last executed **by the author** (2026-10-13, at commit `35237a2`; the same totals were first reached
+on 2026-10-12 in the Phase 9D delta, and no application source has changed since): server 38 files /
+701 tests, web 24 files / 281 tests, typecheck clean. The independent historical audit executed web 24 files / 281
 tests and server 31 files / 563 tests. It collected all 701 server tests but did not run the seven
 suites that write files (storage, seed, startup, analysis storage, analysis service, API recovery,
 replay), so "701 passing" is the author's result, not an independent one. Tests use scripted fake LLM clients; **no test contacts a provider**. Most server
@@ -403,7 +404,8 @@ relationship-grounding tests "failing on HEAD" (D98) failed because the module t
 exist yet, which is not a per-test regression result.
 
 Real-browser checks (headless Edge, desktop and 320–768 px) were run during development against an
-isolated backend; they are recorded in `PROCESS.md` but are not part of `npm test`.
+isolated backend; they are recorded in [`docs/PROCESS_HISTORY.md`](docs/PROCESS_HISTORY.md) but are
+not part of `npm test`.
 
 ## Security boundaries and limitations
 
@@ -498,8 +500,10 @@ This estimate includes planning, development, testing, code review, documentatio
 
 ## Further reading
 
-- [`PROCESS.md`](PROCESS.md): how the project was built with Claude Code: prompts, decisions,
-  corrections, failures, security findings and design iterations, in chronological order.
+- [`PROCESS.md`](PROCESS.md): the Engineering Delivery & Acceptance Report: what was delivered, how
+  it was engineered and verified, and how the AI-assisted workflow was directed.
+- [`docs/PROCESS_HISTORY.md`](docs/PROCESS_HISTORY.md): the original chronological development log:
+  prompts, decisions, corrections, failures, security findings and design iterations, in order.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): architectural decision records.
 - [`docs/AUDIT_CLOSURE.md`](docs/AUDIT_CLOSURE.md): the independent audit findings and what became of
   each (fixed and tested, documented limitation, open).
