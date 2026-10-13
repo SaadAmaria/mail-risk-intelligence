@@ -30,7 +30,7 @@ and needs no API key.
 | Bonus: interactive cross-email knowledge graph | Delivered |
 | React + TypeScript, Node/Express, `.env.example`, documented fallback, tests | Delivered |
 | `README.md`, `PROCESS.md` | Delivered |
-| Optional: screen recording | Completed; in the private repository's Release, delivery pending (section 6) |
+| Optional: screen recording | Completed; published as a Release asset, delivery to the interviewer pending (section 6) |
 
 **Acceptance position.** Every functional requirement of the brief is implemented and exercised by
 the project's automated tests or by recorded real-browser checks. The findings of three independent
@@ -271,15 +271,18 @@ from fresh clones was verified on 12 October 2026 on Windows 11 with Node 24.11.
 starting with no `.env` and no provider contact; macOS and Linux were not tested
 ([Installation notes](README.md#installation-notes)). The audit ledger shows no open requirement.
 
-**Readiness for evaluation.** A reviewer with repository access needs Node 22.9 or newer and two
+**Readiness for evaluation.** A reviewer needs Node 22.9 or newer and two
 commands ([Quick start](README.md#quick-start)). With no key, the three recorded analyses (a
 high-risk, a medium-risk and a benign case) replay through the real pipeline, and every other message
 can be processed by the rules-only checks. With the reviewer's own provider key, messages can be
 analysed live.
 
-**Handoff actions with the candidate.** The repository is private. The interviewer needs access to it
-to open the code and the demo video, which is an asset of the repository's Release
-([Demo video](README.md#demo-video)). These are delivery steps, not engineering work.
+**Handoff action with the candidate.** The repository was private throughout development. On 13
+October 2026 the candidate decided to publish it as a portfolio project, after the recruiter
+confirmed that it may be shared publicly. Once it is public, the code and the demo video (an asset
+of the repository's Release, linked from the README's [Demo video](README.md#demo-video) section)
+are reachable without an access grant. Sending the submission to the interviewer remains the
+candidate's action; it is a delivery step, not engineering work.
 
 ## 7. Scope Decisions & Architectural Boundaries
 
@@ -328,7 +331,7 @@ The complete list of documented limitations and their audit dispositions is in
 
 | Artifact | Location | What it evidences |
 |---|---|---|
-| Source and history | Private GitHub repository and its commit history | The implementation and the order in which it was built |
+| Source and history | GitHub repository and its commit history | The implementation and the order in which it was built |
 | Set-up, architecture, decisions, limits | [`README.md`](README.md) | How to run and evaluate the application |
 | Decision records | [`docs/DECISIONS.md`](docs/DECISIONS.md) | 108 records: context, alternatives, trade-offs, verification, approval status (the first twelve were written retrospectively and are marked so) |
 | Requirements traceability | [`docs/REQUIREMENTS_TRACEABILITY.md`](docs/REQUIREMENTS_TRACEABILITY.md) | Each requirement mapped to code, tests, limits and independent evidence |
@@ -361,3 +364,7 @@ in the ledger's [Development time](docs/AUDIT_CLOSURE.md#development-time) secti
 this date was archived unchanged as `docs/PROCESS_HISTORY.md`, and this report took its place.
 References to that log in the README, the traceability, the audit ledger and the decision records
 were re-pointed to the archive on the same day; no finding, disposition or decision was altered.
+Later that day the documentation was prepared for the repository's public release: statements that
+assumed a private repository were made independent of its visibility, the README gained a note on
+which files the hiring organisation supplied, and a local folder path was removed from the audit
+ledger's provenance paragraph.

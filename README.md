@@ -8,6 +8,12 @@ entities and relationships across messages.
 
 > **Synthetic data only.** The ten seed emails in `mock_mailbox_data.json` are fictional and were
 > supplied with the assignment.
+>
+> **Origin.** This project was built as a take-home assignment.
+> [`candidate_task_brief.md`](candidate_task_brief.md) and `mock_mailbox_data.json` were supplied by
+> the hiring organisation and are not the author's work; the recruiter has confirmed that the
+> repository may be shared publicly. Everything else was written for this project, with AI
+> assistance as described in [`PROCESS.md`](PROCESS.md).
 
 ![Knowledge graph, desktop](docs/screenshots/graph-desktop.png)
 
@@ -481,12 +487,12 @@ The demonstration video has been completed (2026-10-13).
   Graph, Recorded AI Replay, and automatic checks without AI.
 - **Duration:** approximately 5 minutes 57 seconds.
 - **Narration:** by the project author.
-- **Availability:** the video is available through this private repository's GitHub Release
+- **Availability:** the video is an asset of this repository's GitHub Release
   [`demo-v1.0`](https://github.com/SaadAmaria/mail-risk-intelligence/releases/tag/demo-v1.0)
-  (published 2026-10-13). The link above leads directly to the MP4 Release asset. Opening it needs a
-  GitHub account with access to this private repository; without that access GitHub answers "not
-  found". The video is a Release asset, not one of the repository's tracked files, and it has not
-  been published anywhere else.
+  (published 2026-10-13), and the link above leads directly to the MP4. It is a Release asset, not
+  one of the repository's tracked files. The link follows the repository's visibility: while the
+  repository is private it opens only for accounts with access, and once the repository is public it
+  opens for everyone.
 - **File:** `Mail-Risk-Intelligence.mp4`, SHA-256
   `80D4B79E5F245D92A5DFBF3656EF584A3F25C28D9665EDA5459A7522534BCD91`.
 

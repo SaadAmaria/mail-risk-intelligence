@@ -16,8 +16,8 @@ supplied the three complete reports, and the ledger was reconciled against them:
 | **B** | Phase 9B independent re-audit (`Pasted text(20261011-191630).txt`) | `PASS_WITH_FINDINGS`; release: `FIX_BEFORE_SHIPPING` |
 | **C** | Historical closure audit (`Pasted text(20261012-132539).txt`): 71 distinct findings and sub-findings from A and B | `HISTORICAL_AUDIT_CLOSURE: INCOMPLETE`, 17 unaccounted findings, `FINAL_COMMIT_RECOMMENDATION: HOLD` |
 
-The report files are kept by the operator outside the repository
-(`C:\desktop memory\Darya Interview Audit Reports\`) and are not committed. The master matrix below
+The report files are kept by the operator outside the repository and are not committed (until
+2026-10-13 this sentence also gave their local folder path, removed as unnecessary). The master matrix below
 uses C's numbering (H01–H71 = C's IDs 01–71). C's original-severity column is kept. Where C says
 "unspecified" but A or B attached a severity to a grouped row, that is noted.
 
@@ -99,8 +99,8 @@ inspected by C, not run; **[author]** = run or written by the implementing agent
 | H48 | A §2; B §7 | unspecified | Visual consistency and loading/empty/error polish lack independent browser acceptance | NOT_INDEPENDENTLY_VERIFIED | Component state tests [C: executed]; screenshots are the author's | — |
 | H49 | A §§1,7,12; B §§2,9 | unspecified in C (B §10 lists install acceptance under "P2 confidence gap") | Clean-clone installation and first-run startup not independently verified | NOT_INDEPENDENTLY_VERIFIED | Author fresh-clone check recorded in `PROCESS_HISTORY.md`, Phase 8 ("Clean-room verification") [author]; no audit ran an install | An independent clean-clone run would close it |
 | H50 | A §§2,6; B §§5,7 | unspecified in C (B §10 lists restart acceptance under "P2 confidence gap") | Real restart and disk durability not independently re-run | NOT_INDEPENDENTLY_VERIFIED | The author ran the file-writing suites (storage, seed, startup, analysis storage, analysis service, API recovery, replay) on 2026-10-12 within the full server run [author]; C excluded exactly those 7 suites; no independent real restart | — |
-| H51 | A §§2,7,10; B §§2,9,10 | P2 handoff risk | Interviewer access to the private repository and setup guide is unknown | REQUIRES_USER_DECISION | `web/src/lib/docs.ts` links the private GitHub README | Grant access or supply a permitted zip at handoff |
-| H52 | A §§2,8; B §§2,7,10 | unspecified | The optional screen recording is absent | REQUIRES_USER_DECISION (disposition unchanged; 2026-10-13: the recording now exists and is in the private GitHub Release; confirming the interviewer's access and delivery is the remaining operator decision) | Operator, 2026-10-12: a video is planned and **not finished**. *Resolution note, 2026-10-13:* the video "Mail Risk Intelligence" has been **completed**: approximately 5 minutes 57 seconds, narrated by the project author, reviewed and approved by the operator. When this note was first written the file was stored locally only. *Later on 2026-10-13:* it was published as an asset of the **private** GitHub Release `demo-v1.0` (tag on commit `ec4adf6`), and the README links to it. The asset is not a tracked file and can be opened only with access to the private repository. **Final delivery to the interviewer is pending** [author; not seen by any audit] | Until 2026-10-13: do not claim a recording until it exists. Since then: do not claim delivery until the interviewer's access is confirmed (see H51) |
+| H51 | A §§2,7,10; B §§2,9,10 | P2 handoff risk | Interviewer access to the private repository and setup guide is unknown | REQUIRES_USER_DECISION | `web/src/lib/docs.ts` links the private GitHub README. *Publication note, 2026-10-13:* the candidate decided to make the repository public as a portfolio project, after the recruiter confirmed that it may be shared publicly. Once it is public, no access grant is needed and that link opens for everyone; sending the submission to the interviewer remains the candidate's action. The disposition is left as recorded [author] | Grant access or supply a permitted zip at handoff |
+| H52 | A §§2,8; B §§2,7,10 | unspecified | The optional screen recording is absent | REQUIRES_USER_DECISION (disposition unchanged; 2026-10-13: the recording now exists and is in the private GitHub Release; confirming the interviewer's access and delivery is the remaining operator decision) | Operator, 2026-10-12: a video is planned and **not finished**. *Resolution note, 2026-10-13:* the video "Mail Risk Intelligence" has been **completed**: approximately 5 minutes 57 seconds, narrated by the project author, reviewed and approved by the operator. When this note was first written the file was stored locally only. *Later on 2026-10-13:* it was published as an asset of the **private** GitHub Release `demo-v1.0` (tag on commit `ec4adf6`), and the README links to it. The asset is not a tracked file and can be opened only with access to the private repository. **Final delivery to the interviewer is pending**. *Publication note, 2026-10-13:* once the repository is public (see H51), the asset can be downloaded without an access grant; that is still not delivery to the interviewer [author; not seen by any audit] | Until 2026-10-13: do not claim a recording until it exists. Since then: do not claim delivery until the interviewer's access is confirmed (see H51) |
 | H53 | A §6; B §8 | unspecified | Fake-LLM tests prove application behaviour, not model quality | ACCEPTED_DOCUMENTED_LIMITATION | README names the scripted clients [C: inspected] | — |
 | H54 | A §6; B §8 | unspecified | Constructed analyses and placeholder quotes bypass grounding; the test title "legitimate relationships" overclaims | DEFERRED_NONBLOCKING_IMPROVEMENT | `relationship-grounding.test.ts:52` "legitimate relationships and their quotes are preserved exactly" keeps `sent_email_to` on a transfer quote: it proves preservation, not legitimacy. `risk-entities.test.ts`, `risk-account-identity.test.ts`, `graph-aggregation.test.ts` insert constructed analyses (placeholder quote `"x"`) on purpose [C: inspected] | Rename the test at the next code change (test edits are outside this documentation-only pass); read those suites as mechanics tests |
 | H55 | A §6; B §§2,8 | unspecified | jsdom viewport tests do not establish browser layout or touch behaviour | ACCEPTED_DOCUMENTED_LIMITATION | README separates jsdom from manual browser checks [C: inspected] | — |
@@ -144,7 +144,9 @@ the H52 row). No disposition and no count above changed: the 71 findings and the
 reconciled on 2026-10-12, and H52 stays a user decision because the video has not been delivered.
 Later the same day the video was published in the private repository's GitHub Release `demo-v1.0`.
 That is availability to people with repository access, not delivery to the interviewer, so H52 stays
-REQUIRES_USER_DECISION until delivery or access is confirmed.
+REQUIRES_USER_DECISION until delivery or access is confirmed. On the same day the candidate decided
+to make the repository public (see the H51 row); H51 and H52 keep their dispositions until the
+submission has actually been delivered.
 
 ### The 17 entries C found missing
 
@@ -186,7 +188,7 @@ REQUIRES_USER_DECISION until delivery or access is confirmed.
 | Development-time disclosure | **SATISFIED** through the operator's approximate overall estimate |
 | Precise focused-time measurement | **NOT AVAILABLE** (never measured) |
 | Independent verification of duration | **NOT PERFORMED** |
-| Demo video | **COMPLETED** on 2026-10-13 ("Mail Risk Intelligence", approximately 5 minutes 57 seconds); **AVAILABLE** as an asset of the private GitHub Release `demo-v1.0` since the same day; **DELIVERY TO THE INTERVIEWER PENDING** (H52). The estimate includes its production |
+| Demo video | **COMPLETED** on 2026-10-13 ("Mail Risk Intelligence", approximately 5 minutes 57 seconds); **AVAILABLE** as an asset of the repository's GitHub Release `demo-v1.0` since the same day (the repository was private then; its public release was decided on 2026-10-13); **DELIVERY TO THE INTERVIEWER PENDING** (H52). The estimate includes its production |
 
 - **Estimate versus confirmed work:** the 8 hours is the operator's approximate overall estimate and
   includes the video's production. The operator confirmed it unchanged on 2026-10-13, after the video
@@ -327,8 +329,9 @@ code before it was fixed.
 - About 8 hours is the operator's approximate overall estimate. It includes the production of the
   demo video (completed 2026-10-13), and it is neither a measurement nor independently verified.
 - A completed demo video is **not** a delivered one. Since 2026-10-13 the video is an asset of the
-  private repository's GitHub Release `demo-v1.0`, which only people with repository access can open.
-  Final delivery to the interviewer is pending (H52, H51), and no audit has seen the video.
+  repository's GitHub Release `demo-v1.0`. While the repository is private only people with access
+  can open it; publishing the repository makes it downloadable by anyone. Neither is delivery to the
+  interviewer, which is pending (H52, H51), and no audit has seen the video.
 
 ## Appendix: the ledger before reconciliation (superseded 2026-10-12, kept verbatim)
 
